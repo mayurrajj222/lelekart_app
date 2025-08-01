@@ -1,0 +1,26 @@
+Cannot access 'retryCounter' before initialization
+Cannot access 'retryCounter' before initialization
+The above error occurred in the <SellerDashboardPage> component:
+
+    at SellerDashboardPage (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/pages/seller/dashboard.tsx?t=1747219418318:42:21)
+    at ProtectedRoute (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/lib/protected-route.tsx:24:14)
+    at Route (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=be0f600f:191:16)
+    at Switch (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=be0f600f:247:17)
+    at div
+    at Provider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-GE6KQUNF.js?v=be0f600f:38:15)
+    at TooltipProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=be0f600f:64:5)
+    at AIAssistantProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/context/ai-assistant-context.tsx:23:39)
+    at NotificationProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/contexts/notification-context.tsx:23:40)
+    at WishlistProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/context/wishlist-context.tsx:35:36)
+    at CartProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/context/cart-context.tsx:24:32)
+    at WalletProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/context/wallet-context.tsx:40:34)
+    at AuthProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/hooks/use-auth.tsx:27:32)
+    at QueryClientProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=be0f600f:2805:3)
+    at App
+    at CartProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/context/cart-context.tsx?v=w7gTmilchP1eGWpPy7Ha_:24:32)
+    at AuthProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/hooks/use-auth.tsx?v=w7gTmilchP1eGWpPy7Ha_:27:32)
+    at QueryClientProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=be0f600f:2805:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+Cannot access 'retryCounter' before initialization

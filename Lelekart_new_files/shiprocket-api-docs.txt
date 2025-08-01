@@ -1,0 +1,310 @@
+## Shipping Management
+
+### `/api/shipping/methods` - Get all shipping methods (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 1,
+    "name": "Standard Shipping",
+    "description": "Delivery within 5-7 business days",
+    "price": 99,
+    "isDefault": true,
+    "estimatedDeliveryDays": 7
+  },
+  {
+    "id": 2,
+    "name": "Express Shipping",
+    "description": "Delivery within 2-3 business days",
+    "price": 199,
+    "isDefault": false,
+    "estimatedDeliveryDays": 3
+  }
+]
+```
+
+### `/api/shipping/methods` - Create a new shipping method (Admin only) (POST)
+**Request:**
+```json
+{
+  "name": "Same Day Delivery",
+  "description": "Delivery on the same day for selected locations",
+  "price": 299,
+  "isDefault": false,
+  "estimatedDeliveryDays": 1
+}
+```
+**Response (201):**
+```json
+{
+  "id": 3,
+  "name": "Same Day Delivery",
+  "description": "Delivery on the same day for selected locations",
+  "price": 299,
+  "isDefault": false,
+  "estimatedDeliveryDays": 1,
+  "createdAt": "2025-04-17T04:20:20.000Z"
+}
+```
+
+### `/api/shipping/zones` - Get all shipping zones (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 1,
+    "name": "All India",
+    "description": "Covers all states in India",
+    "regions": ["All States"],
+    "active": true
+  },
+  {
+    "id": 2,
+    "name": "Metro Cities",
+    "description": "Major metro cities with faster delivery",
+    "regions": ["Delhi", "Mumbai", "Bangalore", "Chennai", "Kolkata", "Hyderabad"],
+    "active": true
+  }
+]
+```
+
+### `/api/shipping/rules` - Get all shipping rules (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 1,
+    "zoneId": 1,
+    "methodId": 1,
+    "minCartValue": 0,
+    "maxCartValue": 499,
+    "price": 99,
+    "active": true
+  },
+  {
+    "id": 2,
+    "zoneId": 1,
+    "methodId": 1,
+    "minCartValue": 500,
+    "maxCartValue": null,
+    "price": 0,
+    "active": true
+  }
+]
+```
+
+### `/api/shipping/rates` - Calculate shipping rates for a cart (GET)
+**Request Query Parameters:**
+```
+zoneId=1&cartValue=1200&weight=500
+```
+**Response (200):**
+```json
+[
+  {
+    "methodId": 1,
+    "name": "Standard Shipping",
+    "description": "Delivery within 5-7 business days",
+    "price": 0,
+    "estimatedDeliveryDays": 7,
+    "note": "Free shipping for orders above ₹500"
+  },
+  {
+    "methodId": 2,
+    "name": "Express Shipping",
+    "description": "Delivery within 2-3 business days",
+    "price": 199,
+    "estimatedDeliveryDays": 3,
+    "note": null
+  }
+]
+```
+
+## Shiprocket Integration
+
+### `/api/shiprocket/status` - Check Shiprocket connection status (Admin/Co-admin only) (GET)
+**Response (200):**
+```json
+{
+  "configured": true,
+  "status": "connected"
+}
+```
+
+### `/api/shiprocket/connect` - Connect to Shiprocket API (Admin/Co-admin only) (POST)
+**Request:**
+```json
+{
+  "email": "kaushlendra.k12@fms.edu",
+  "password": "secure_password_123"
+}
+```
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Successfully connected to Shiprocket",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+### `/api/shiprocket/settings` - Get Shiprocket settings (Admin/Co-admin only) (GET)
+**Response (200):**
+```json
+{
+  "id": 1,
+  "email": "kaushlendra.k12@fms.edu",
+  "password": "********",
+  "defaultCourier": "Delhivery",
+  "autoShipEnabled": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "tokenExpiry": "2025-04-20T04:20:20.000Z"
+}
+```
+
+### `/api/shiprocket/settings` - Update Shiprocket settings (Admin/Co-admin only) (POST)
+**Request:**
+```json
+{
+  "defaultCourier": "Delhivery",
+  "autoShipEnabled": true
+}
+```
+**Response (200):**
+```json
+{
+  "id": 1,
+  "email": "kaushlendra.k12@fms.edu",
+  "password": "********",
+  "defaultCourier": "Delhivery",
+  "autoShipEnabled": true,
+  "updatedAt": "2025-04-17T04:25:20.000Z"
+}
+```
+
+### `/api/shiprocket/test` - Test Shiprocket connection (Admin/Co-admin only) (POST)
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Shiprocket connection is working correctly"
+}
+```
+
+### `/api/shiprocket/couriers` - Get available courier companies (Admin/Co-admin only) (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 1,
+    "name": "Delhivery",
+    "serviceable_zones": "All India"
+  },
+  {
+    "id": 2,
+    "name": "DTDC",
+    "serviceable_zones": "All India"
+  },
+  {
+    "id": 3,
+    "name": "BlueDart",
+    "serviceable_zones": "Metro Cities, Urban Areas"
+  }
+]
+```
+
+### `/api/shiprocket/shipments` - Get all shipments (Admin/Co-admin only) (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": "SR12345",
+    "order_id": "ORD123",
+    "status": "Picked Up",
+    "courier": "Delhivery",
+    "tracking_id": "DEL123456",
+    "created_at": "2025-04-16T14:30:00.000Z"
+  },
+  {
+    "id": "SR12346",
+    "order_id": "ORD124",
+    "status": "In Transit",
+    "courier": "DTDC",
+    "tracking_id": "DTDC789012",
+    "created_at": "2025-04-16T09:45:00.000Z"
+  }
+]
+```
+
+### `/api/shiprocket/pending-orders` - Get pending orders for shipment (Admin/Co-admin only) (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 57,
+    "userId": 4,
+    "status": "processing",
+    "total": 2999,
+    "date": "2025-04-17T10:05:20.000Z",
+    "shippingDetails": "{\"name\":\"John Doe\",\"addressLine1\":\"123 Main Street\",\"city\":\"Mumbai\",\"state\":\"Maharashtra\",\"postalCode\":\"400001\",\"country\":\"India\",\"phone\":\"9876543210\"}",
+    "items": [
+      {
+        "id": 122,
+        "orderId": 57,
+        "productId": 2012,
+        "quantity": 1,
+        "price": 2999,
+        "product": {
+          "name": "Wireless Headphones"
+        }
+      }
+    ]
+  }
+]
+```
+
+### `/api/orders/:id/shiprocket` - Push order to Shiprocket (Admin/Co-admin/Seller only) (POST)
+**Response (200):**
+```json
+{
+  "message": "Order successfully pushed to Shiprocket",
+  "shiprocketOrderId": "SR12347",
+  "shipmentId": "SH5678",
+  "trackingNumber": "DEL789123"
+}
+```
+
+### `/api/tracking/:trackingNumber` - Track a shipment (GET)
+**Response (200):**
+```json
+{
+  "trackingNumber": "DEL123456",
+  "courierName": "Delhivery",
+  "currentStatus": "In Transit",
+  "expectedDelivery": "2025-04-19T18:00:00.000Z",
+  "trackingUrl": "https://shiprocket.co/tracking/DEL123456",
+  "trackingHistory": [
+    {
+      "status": "Order Picked Up",
+      "location": "Mumbai Warehouse",
+      "timestamp": "2025-04-16T15:30:00.000Z"
+    },
+    {
+      "status": "In Transit",
+      "location": "Mumbai Sorting Center",
+      "timestamp": "2025-04-17T09:15:00.000Z"
+    }
+  ]
+}
+```
+
+### `/api/orders/:orderId/shiprocket/cancel` - Cancel a shipment (Admin/Co-admin/Seller only) (POST)
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Shipment cancelled successfully",
+  "orderId": 57,
+  "shiprocketOrderId": "SR12347"
+}
+```

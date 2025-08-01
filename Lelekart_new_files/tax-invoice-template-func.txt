@@ -1,0 +1,323 @@
+/**
+ * Get the tax invoice template from the database or fallback to default
+ */
+async function getTaxInvoiceTemplate(): Promise<string> {
+  try {
+    // Import the Pool object from pg
+    const { Pool } = require('pg');
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    
+    try {
+      // Query the database for the tax invoice template
+      const result = await pool.query(
+        'SELECT content FROM document_templates WHERE type = $1',
+        ['tax_invoice']
+      );
+      
+      // If found, return the template from the database
+      if (result.rows.length > 0) {
+        console.log('Using tax invoice template from database');
+        const template = result.rows[0].content;
+        // Close the database connection
+        pool.end();
+        return template;
+      }
+      
+      // Otherwise, return the default template
+      console.log('Tax invoice template not found in database, using default');
+      pool.end();
+      return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Tax Invoice</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            color: #333;
+            margin: 0;
+            padding: 0;
+          }
+          .invoice-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+          }
+          .header-title {
+            background-color: #e0e0e0;
+            text-align: center;
+            padding: 5px;
+            font-weight: bold;
+            font-size: 16px;
+            border-top: 1px solid #999;
+            border-bottom: 1px solid #999;
+          }
+          .info-section {
+            display: flex;
+            width: 100%;
+          }
+          .left-column, .right-column {
+            width: 50%;
+            padding: 5px;
+          }
+          .info-label {
+            font-weight: bold;
+            margin-bottom: 5px;
+          }
+          .address-block {
+            margin-left: 15px;
+            margin-top: 3px;
+            font-size: 11px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+          table, th, td {
+            border: 1px solid #999;
+          }
+          th {
+            background-color: #f5f5f5;
+            text-align: center;
+            padding: 5px;
+            font-weight: normal;
+          }
+          td {
+            padding: 5px;
+            text-align: center;
+          }
+          .align-left {
+            text-align: left;
+          }
+          .signature-section {
+            margin-top: 20px;
+            padding: 5px;
+            font-size: 11px;
+            text-align: center;
+          }
+          .taxes-column {
+            max-width: 300px;
+          }
+          .address-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+          }
+          .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+          }
+          .table th, .table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+          }
+          .table th {
+            background-color: #f2f2f2;
+          }
+          .tax-section {
+            margin-bottom: 20px;
+          }
+          .tax-table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+          .tax-table th, .tax-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+          }
+          .tax-table th {
+            background-color: #f2f2f2;
+          }
+          .total-section {
+            text-align: right;
+            margin-bottom: 20px;
+          }
+          .total-row {
+            margin-bottom: 5px;
+          }
+          .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 10px;
+            color: #777;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="invoice">
+          <div class="header">
+            <div class="title">TAX INVOICE</div>
+            <div>Invoice #{{order.orderNumber}}</div>
+            <div>Date: {{order.createdAt}}</div>
+          </div>
+          
+          <div class="address-section">
+            <div class="address-box">
+              <div class="address-title">Seller:</div>
+              <div>LeleKart Marketplace</div>
+              <div>123 Commerce Street</div>
+              <div>Mumbai, Maharashtra 400001</div>
+              <div>India</div>
+              <div>GSTIN: 27AABCU9603R1ZX</div>
+            </div>
+            
+            <div class="address-box">
+              <div class="address-title">Buyer:</div>
+              <div>{{order.billingAddress.name}}</div>
+              <div>{{order.billingAddress.address1}}</div>
+              <div>{{order.billingAddress.address2}}</div>
+              <div>{{order.billingAddress.city}}, {{order.billingAddress.state}} {{order.billingAddress.pincode}}</div>
+              <div>{{order.billingAddress.country}}</div>
+              {{#if order.billingAddress.gstin}}
+              <div>GSTIN: {{order.billingAddress.gstin}}</div>
+              {{/if}}
+            </div>
+          </div>
+          
+          <div class="address-section">
+            <div class="address-box">
+              <div class="address-title">Ship To:</div>
+              <div>{{order.shippingAddress.name}}</div>
+              <div>{{order.shippingAddress.address1}}</div>
+              <div>{{order.shippingAddress.address2}}</div>
+              <div>{{order.shippingAddress.city}}, {{order.shippingAddress.state}} {{order.shippingAddress.pincode}}</div>
+              <div>{{order.shippingAddress.country}}</div>
+            </div>
+            
+            <div class="address-box">
+              <div class="address-title">Order Details:</div>
+              <div>Order #: {{order.orderNumber}}</div>
+              <div>Order Date: {{order.createdAt}}</div>
+              <div>Payment Method: {{order.paymentMethod}}</div>
+            </div>
+          </div>
+          
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>HSN/SAC</th>
+                <th>Quantity</th>
+                <th>Rate</th>
+                <th>Taxable Value</th>
+                <th>GST Rate</th>
+                <th>GST Amount</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each order.orderItems}}
+              <tr>
+                <td>{{this.product.name}}</td>
+                <td>{{this.product.hsnCode}}</td>
+                <td>{{this.quantity}}</td>
+                <td>₹{{this.basePrice}}</td>
+                <td>₹{{this.taxableValue}}</td>
+                <td>{{this.product.gstRate}}%</td>
+                <td>₹{{this.gstAmount}}</td>
+                <td>₹{{this.totalPrice}}</td>
+              </tr>
+              {{/each}}
+            </tbody>
+          </table>
+          
+          <div class="tax-section">
+            <div class="address-title">Tax Summary:</div>
+            <table class="tax-table">
+              <thead>
+                <tr>
+                  <th>HSN/SAC</th>
+                  <th>Taxable Value</th>
+                  <th>CGST Rate</th>
+                  <th>CGST Amount</th>
+                  <th>SGST Rate</th>
+                  <th>SGST Amount</th>
+                  <th>IGST Rate</th>
+                  <th>IGST Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{#each order.taxSummary}}
+                <tr>
+                  <td>{{this.hsnCode}}</td>
+                  <td>₹{{this.taxableValue}}</td>
+                  <td>{{this.cgstRate}}%</td>
+                  <td>₹{{this.cgstAmount}}</td>
+                  <td>{{this.sgstRate}}%</td>
+                  <td>₹{{this.sgstAmount}}</td>
+                  <td>{{this.igstRate}}%</td>
+                  <td>₹{{this.igstAmount}}</td>
+                </tr>
+                {{/each}}
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="total-section">
+            <div class="total-row">Subtotal: ₹{{order.subtotal}}</div>
+            <div class="total-row">Shipping: ₹{{order.shippingFee}}</div>
+            <div class="total-row">CGST: ₹{{order.cgstAmount}}</div>
+            <div class="total-row">SGST: ₹{{order.sgstAmount}}</div>
+            <div class="total-row">IGST: ₹{{order.igstAmount}}</div>
+            <div class="total-row">Discount: -₹{{order.discount}}</div>
+            <div class="total-row"><strong>Total: ₹{{order.total}}</strong></div>
+            {{#if order.wallet_discount}}
+            <div class="total-row">Paid with Wallet: -₹{{order.wallet_discount}}</div>
+            <div class="total-row"><strong>Balance Paid: ₹{{order.amountPaid}}</strong></div>
+            {{/if}}
+          </div>
+          
+          <div class="footer">
+            <div>This is a computer-generated invoice and does not require a physical signature.</div>
+            <div>E. & O.E.</div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+    } catch (innerError) {
+      console.error('Error fetching tax invoice template from database:', innerError);
+      pool.end();
+      
+      // Return a simple fallback template in case of error
+      return `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Tax Invoice</title>
+            <style>
+              body { font-family: Arial, sans-serif; }
+            </style>
+          </head>
+          <body>
+            <h1>Tax Invoice</h1>
+            <p>Invoice #{{order.orderNumber}}</p>
+            <p>There was an error generating the complete tax invoice template.</p>
+          </body>
+        </html>
+      `;
+    }
+  } catch (error) {
+    console.error('Error in getTaxInvoiceTemplate:', error);
+    
+    // Return a simple error template
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Tax Invoice</title>
+        </head>
+        <body>
+          <h1>Tax Invoice</h1>
+          <p>There was an error generating the tax invoice.</p>
+        </body>
+      </html>
+    `;
+  }
+}

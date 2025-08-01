@@ -1,0 +1,174 @@
+
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Shipping Label</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #333;
+            margin: 0;
+            padding: 0;
+          }
+          .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          .shipping-label {
+            border: 3px solid #000;
+            padding: 20px;
+            margin-bottom: 30px;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+          }
+          .title {
+            font-size: 24px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+          }
+          .subtitle {
+            font-size: 16px;
+            margin-bottom: 10px;
+          }
+          .important {
+            font-weight: bold;
+            text-transform: uppercase;
+          }
+          .address-section {
+            display: table;
+            width: 100%;
+            margin-bottom: 20px;
+          }
+          .address-box {
+            display: table-cell;
+            width: 50%;
+            padding: 10px;
+            vertical-align: top;
+          }
+          .address-box-inner {
+            border: 1px solid #000;
+            padding: 10px;
+            min-height: 120px;
+          }
+          .address-label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 16px;
+          }
+          .barcode {
+            text-align: center;
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #000;
+            background: #f9f9f9;
+          }
+          .code {
+            font-family: monospace;
+            font-size: 18px;
+            letter-spacing: 2px;
+          }
+          .footer {
+            margin-top: 20px;
+            font-size: 10px;
+            text-align: center;
+            color: #666;
+          }
+          .order-details {
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background: #f9f9f9;
+          }
+          .order-title {
+            font-weight: bold;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+          }
+          .delivery-date {
+            margin-top: 10px;
+            font-style: italic;
+          }
+          .note {
+            font-size: 12px;
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px dashed #ccc;
+            background: #f5f5f5;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="shipping-label">
+            <div class="header">
+              <div class="title">Shipping Label</div>
+              <div class="subtitle">LeleKart E-Commerce Platform</div>
+              <div>Order #: 9</div>
+              <div>Date: 2 May 2025</div>
+            </div>
+            
+            <div class="address-section">
+              <div class="address-box">
+                <div class="address-label">FROM:</div>
+                <div class="address-box-inner">
+                  <strong>admin</strong><br>
+                  LeleKart Fulfillment Center<br>
+                  123 Commerce Street<br>
+                  Mumbai, Maharashtra 400001<br>
+                  India
+                </div>
+              </div>
+              
+              <div class="address-box">
+                <div class="address-label">TO:</div>
+                <div class="address-box-inner">
+                  <strong>Acheles Kumar</strong><br>
+                  Build 2072<br>
+                  Banur, Punjab 140601<br>
+                  India<br>
+                  Phone: 9650503696
+                </div>
+              </div>
+            </div>
+            
+            <div class="order-details">
+              <div class="order-title">Order Information</div>
+              <div>Order ID: 9</div>
+              <div>Order Date: 13 April 2025</div>
+              <div>Status: Pending</div>
+              <div>Payment Method: cod</div>
+            </div>
+            
+            <div class="barcode">
+              <div>Scan for order tracking</div>
+              <div class="code">*9*</div>
+            </div>
+            
+            <div class="note">
+              <div class="important">Important:</div>
+              <ul>
+                <li>Please keep this label with your package.</li>
+                <li>This shipping label is required for delivery.</li>
+                <li>For any questions, contact LeleKart customer service.</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div class="footer">
+            <div>Generated by LeleKart E-Commerce Platform</div>
+            <div>This document is system-generated and doesn't require a signature.</div>
+          </div>
+        </div>
+      </body>
+    </html>
+  

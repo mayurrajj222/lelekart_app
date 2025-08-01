@@ -1,0 +1,2 @@
+name,description,price,purchasePrice,mrp,gst,category,subCategory,brand,color,size,imageUrl1,imageUrl2,imageUrl3,imageUrl4,inventory,sku,hsn,Weight,Length,Width,Height,warranty_,returnPolicy,tax,specifications,productType
+"Bulk Test Product","This is a test product for bulk import with all dimensions",8999,7999,9999,18,Electronics,Gadgets,TestBrand,Black,Medium,https://via.placeholder.com/400x400?text=Test+Product,,,,50,TEST-1001,12345678,750,25,15,10,1 Year,7 Days,18,"Material: Plastic, Type: Testing",Regular

@@ -1,0 +1,42 @@
+ WebSocket connection to 'wss://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/?token=HTR4kIKXx0NR' failed: 
+db306eaa-7d41-420f-b…plit.dev/api/user:1 
+ Failed to load resource: the server responded with a status of 502 (Bad Gateway)
+db306eaa-7d41-420f-b…it.dev/api/wallet:1 
+ Failed to load resource: the server responded with a status of 502 (Bad Gateway)
+db306eaa-7d41-420f-b…llet/transactions:1 
+ Failed to load resource: the server responded with a status of 502 (Bad Gateway)
+db306eaa-7d41-420f-b…ions/unread/count:1 
+ Failed to load resource: the server responded with a status of 502 (Bad Gateway)
+db306eaa-7d41-420f-b…ev/api/categories:1 
+ Failed to load resource: the server responded with a status of 502 (Bad Gateway)
+db306eaa-7d41-420f-b…api/notifications:1 
+ Failed to load resource: the server responded with a status of 502 (Bad Gateway)
+db306eaa-7d41-420f-b…plit.dev/api/cart:1 
+ Failed to load resource: the server responded with a status of 502 (Bad Gateway)
+db306eaa-7d41-420f-b…subcategories/all:1 
+ Failed to load resource: the server responded with a status of 502 (Bad Gateway)
+db306eaa-7d41-420f-b…ions/similar/4598:1 
+ Failed to load resource: the server responded with a status of 502 (Bad Gateway)
+db306eaa-7d41-420f-b….dev/api/products:1 
+ Failed to load resource: the server responded with a status of 502 (Bad Gateway)
+db306eaa-7d41-420f-b…i/recommendations:1 
+ Failed to load resource: the server responded with a status of 502 (Bad Gateway)
+db306eaa-7d41-420f-b…598?variants=true:1 
+ Failed to load resource: the server responded with a status of 502 (Bad Gateway)
+db306eaa-7d41-420f-b…plit.dev/api/cart:1 
+ Failed to load resource: the server responded with a status of 502 (Bad Gateway)
+db306eaa-7d41-420f-b…plit.dev/api/user:1 
+ Failed to load resource: the server responded with a status of 502 (Bad Gateway)
+ WebSocket connection to 'wss://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/?token=w6HrGjE72hWA' failed: 
+4098-78d5ffb4c0fd7138.js:1 WebSocket is already in CLOSING or CLOSED state.
+Network.js:227 WebSocket connection to 'wss://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/?token=fDma2AsaqxgO' failed: 
+Network.js:227 Uncaught (in promise) SyntaxError: Failed to construct 'WebSocket': The URL 'wss://localhost:undefined/?token=fDma2AsaqxgO' is invalid.
+    at setupWebSocket (client:536:19)
+    at fallback (client:509:16)
+    at WebSocket.<anonymous> (client:555:7)
+Console.js:61 Impersonation active - invalidating product queries for 13
+Console.js:61 WebSocket connected
+Console.js:61 Thumbnail clicked: 2
+2
+
+ Chrome is moving towards a new experience that allows users to choose to browse without third-party cookies.

@@ -82,8 +82,8 @@ android {
         applicationId "com.lelekart"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 7
+        versionName "1.6"
     }
     signingConfigs {
         debug {
@@ -91,6 +91,12 @@ android {
             storePassword 'android'
             keyAlias 'androiddebugkey'
             keyPassword 'android'
+        }
+        release {
+            storeFile file('lelekart-release-key.keystore')
+            storePassword 'lelekart123'
+            keyAlias 'lelekart-key-alias'
+            keyPassword 'lelekart123'
         }
     }
     buildTypes {
@@ -100,7 +106,7 @@ android {
         release {
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
@@ -117,3 +123,5 @@ dependencies {
         implementation jscFlavor
     }
 }
+
+apply from: '../../node_modules/react-native-vector-icons/fonts.gradle'

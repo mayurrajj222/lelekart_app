@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #log { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: auto; margin-bottom: 10px; }
+        button { padding: 5px 10px; margin-right: 10px; }
+        input { padding: 5px; width: 400px; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div>
+        <input type="text" id="wsUrl" placeholder="WebSocket URL" value="">
+        <button id="connect">Connect</button>
+        <button id="disconnect">Disconnect</button>
+    </div>
+    <div id="log"></div>
+
+    <script>
+        // Get DOM elements
+        const wsUrlInput = document.getElementById('wsUrl');
+        const connectButton = document.getElementById('connect');
+        const disconnectButton = document.getElementById('disconnect');
+        const logElement = document.getElementById('log');
+
+        // Global WebSocket reference
+        let socket = null;
+
+        // Log function
+        function log(message, type = 'info') {
+            const now = new Date().toLocaleTimeString();
+            const line = document.createElement('div');
+            line.textContent = `${now} - ${message}`;
+            line.className = type;
+            if (type === 'error') {
+                line.style.color = 'red';
+            } else if (type === 'success') {
+                line.style.color = 'green';
+            }
+            logElement.appendChild(line);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        // Initialize the default WebSocket URL
+        function initializeDefaultUrl() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            wsUrlInput.value = `${protocol}//${host}/ws?userId=1`;
+            log(`Default URL set to: ${wsUrlInput.value}`);
+        }
+
+        // Connect to WebSocket
+        function connectWebSocket() {
+            if (socket) {
+                log('Closing existing connection first', 'warning');
+                socket.close();
+            }
+
+            try {
+                const url = wsUrlInput.value.trim();
+                log(`Attempting to connect to: ${url}`);
+                
+                socket = new WebSocket(url);
+                
+                socket.onopen = () => {
+                    log('WebSocket connection established!', 'success');
+                };
+                
+                socket.onmessage = (event) => {
+                    log(`Message received: ${event.data}`);
+                    try {
+                        const data = JSON.parse(event.data);
+                        log(`Parsed message: ${JSON.stringify(data, null, 2)}`, 'info');
+                    } catch (e) {
+                        log('Failed to parse message as JSON', 'error');
+                    }
+                };
+                
+                socket.onerror = (error) => {
+                    log(`WebSocket error: ${error}`, 'error');
+                };
+                
+                socket.onclose = (event) => {
+                    log(`WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`, 'warning');
+                    socket = null;
+                };
+            } catch (error) {
+                log(`Failed to create WebSocket: ${error.message}`, 'error');
+            }
+        }
+
+        // Disconnect WebSocket
+        function disconnectWebSocket() {
+            if (socket) {
+                log('Closing WebSocket connection');
+                socket.close();
+                socket = null;
+            } else {
+                log('No active WebSocket connection', 'warning');
+            }
+        }
+
+        // Set up event listeners
+        connectButton.addEventListener('click', connectWebSocket);
+        disconnectButton.addEventListener('click', disconnectWebSocket);
+
+        // Initialize on page load
+        window.addEventListener('load', initializeDefaultUrl);
+    </script>
+</body>
+</html>

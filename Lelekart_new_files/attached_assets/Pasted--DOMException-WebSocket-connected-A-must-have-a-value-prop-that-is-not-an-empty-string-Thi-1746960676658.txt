@@ -1,0 +1,54 @@
+
+DOMException {}
+
+WebSocket connected
+A  must have a value prop that is not an empty string. This is because the Select value can be set to an empty string to clear the selection and show the placeholder.
+A  must have a value prop that is not an empty string. This is because the Select value can be set to an empty string to clear the selection and show the placeholder.
+The above error occurred in the <SelectItem> component:
+
+    at https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-select.js?v=9072d26d:845:7
+    at _c11 (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/components/ui/select.tsx:207:13)
+    at div
+    at https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-VZNMAICS.js?v=9072d26d:41:13
+    at https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-DKHUMOWT.js?v=9072d26d:52:11
+    at https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-DKHUMOWT.js?v=9072d26d:33:11
+    at https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-OKX5DAGM.js?v=9072d26d:98:15
+    at https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-select.js?v=9072d26d:756:13
+    at div
+    at https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-DKHUMOWT.js?v=9072d26d:52:11
+    at https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-DKHUMOWT.js?v=9072d26d:33:11
+    at https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-OKX5DAGM.js?v=9072d26d:98:15
+    at Provider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-GE6KQUNF.js?v=9072d26d:38:15)
+    at https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-select.js?v=9072d26d:300:58
+    at https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-DKHUMOWT.js?v=9072d26d:52:11
+    at https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-DKHUMOWT.js?v=9072d26d:33:11
+    at https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-VZNMAICS.js?v=9072d26d:41:13
+    at https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-FMDAVVZD.js?v=9072d26d:262:22
+    at SelectPortal
+    at _c7 (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/components/ui/select.tsx:122:12)
+    at Provider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-GE6KQUNF.js?v=9072d26d:38:15)
+    at Provider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-OKX5DAGM.js?v=9072d26d:28:15)
+    at CollectionProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-OKX5DAGM.js?v=9072d26d:89:13)
+    at Provider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-GE6KQUNF.js?v=9072d26d:38:15)
+    at Provider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-ECKVP5SZ.js?v=9072d26d:1917:15)
+    at Popper (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-ECKVP5SZ.js?v=9072d26d:1974:11)
+    at Select (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-select.js?v=9072d26d:88:5)
+    at div
+    at td
+    at _c13 (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/components/ui/table.tsx:152:13)
+    at tr
+    at _c9 (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/components/ui/table.tsx:102:12)
+    at tbody
+    at _c5 (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/components/ui/table.tsx:55:12)
+    at table
+    at div
+    at _c (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/components/ui/table.tsx:20:11)
+    at div
+    at div
+    at div
+    at div
+    at main
+    at div
+    at div
+    at AdminLayout…
+A  must have a value prop that is not an empty string. This is because the Select value can be set to an empty string to clear the selection and show the placeholder.

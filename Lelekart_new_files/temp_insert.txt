@@ -1,0 +1,11 @@
+      // Invalidate the products query to refresh the products list
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      
+      // Get the current user to include sellerId in the cache key
+      const currentUser = queryClient.getQueryData<any>(["/api/user"]);
+      
+      // Invalidate seller-specific product queries
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/seller/products', currentUser?.id],
+        exact: false 
+      });

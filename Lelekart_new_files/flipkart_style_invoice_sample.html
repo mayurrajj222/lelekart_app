@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Tax Invoice</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      color: #333;
+      margin: 0;
+      padding: 0;
+    }
+    .invoice-container {
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .header-title {
+      background-color: #e0e0e0;
+      text-align: center;
+      padding: 5px;
+      font-weight: bold;
+      font-size: 16px;
+      border-top: 1px solid #999;
+      border-bottom: 1px solid #999;
+    }
+    .info-section {
+      display: flex;
+      width: 100%;
+    }
+    .left-column, .right-column {
+      width: 50%;
+      padding: 5px;
+    }
+    .info-label {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .info-value {
+      color: #555;
+      font-style: italic;
+      font-size: 10px;
+    }
+    .address-block {
+      margin-left: 15px;
+      margin-top: 3px;
+      font-size: 11px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    table, th, td {
+      border: 1px solid #999;
+    }
+    th {
+      background-color: #f5f5f5;
+      text-align: center;
+      padding: 5px;
+      font-weight: normal;
+    }
+    td {
+      padding: 5px;
+      text-align: center;
+    }
+    .align-left {
+      text-align: left;
+    }
+    .signature-section {
+      margin-top: 20px;
+      padding: 5px;
+      font-size: 11px;
+      text-align: center;
+    }
+    .taxes-column {
+      max-width: 300px;
+    }
+  </style>
+</head>
+<body>
+  <div class="invoice-container">
+    <!-- Invoice Header -->
+    <div class="header-title">Tax Invoice</div>
+    
+    <!-- Invoice Info Section -->
+    <div class="info-section">
+      <div class="left-column">
+        <div class="info-label">Invoice No</div>
+        <div class="address-block">
+          Input invoice Number
+          <div class="info-value">(placeholder value)</div>
+        </div>
+        
+        <div class="info-label" style="margin-top: 15px;">Bill To</div>
+        <div class="address-block">
+          Input customer name with address<br>
+          who purchased the product
+          <div class="info-value">(placeholder value)</div>
+        </div>
+        
+        <div class="info-label" style="margin-top: 15px;">Bill From</div>
+        <div class="address-block">
+          Input Business Name with full<br>
+          address who receive the order
+          <div class="info-value">(placeholder value)</div>
+        </div>
+      </div>
+      <div class="right-column">
+        <div class="info-label">Invoice Date</div>
+        <div class="address-block">
+          Input date on which order is placed
+          <div class="info-value">(placeholder value)</div>
+        </div>
+        
+        <div class="info-label" style="margin-top: 15px;">Order No</div>
+        <div class="address-block">
+          Input Order No
+          <div class="info-value">(placeholder value)</div>
+        </div>
+        
+        <div class="info-label" style="margin-top: 15px;">Ship To</div>
+        <div class="address-block">
+          Input customer name and Delivery Address (where customer want to<br>
+          receive his order other than his regular address)
+          <div class="info-value">(placeholder value)</div>
+        </div>
+        
+        <div class="info-label" style="margin-top: 15px;">Ship From</div>
+        <div class="address-block">
+          Input Business name with warehouse address from where the product is<br>
+          dispatch. If warehouse address isn't available then fetch business name
+          <div class="info-value">(placeholder value)</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Invoice Table -->
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 5%;">Sr No</th>
+          <th style="width: 30%;">Description</th>
+          <th style="width: 10%;">HSN</th>
+          <th style="width: 5%;">Qty</th>
+          <th style="width: 10%;">MRP</th>
+          <th style="width: 10%;">Discount</th>
+          <th style="width: 10%;">Taxable Value</th>
+          <th style="width: 10%;" class="taxes-column">Taxes</th>
+          <th style="width: 10%;">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td class="align-left">Product Description 1</td>
+          <td>HSN CODE</td>
+          <td>2</td>
+          <td>MRP</td>
+          <td>DISCOUNT</td>
+          <td>Listing Price (excluding GST)</td>
+          <td class="align-left">
+            SGST @ 2.50%, say Rs 50<br>
+            CGST @ 2.50%, say Rs 50
+          </td>
+          <td>Total (Total of Taxable Value and Taxes)</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td class="align-left">Product Description 2</td>
+          <td>HSN CODE</td>
+          <td>3</td>
+          <td>MRP</td>
+          <td>DISCOUNT</td>
+          <td>Listing Price (excluding GST)</td>
+          <td class="align-left">
+            IGST @12%, say Rs 100
+          </td>
+          <td>Total (Total of Taxable Value and Taxes)</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td class="align-left">Product Description 3</td>
+          <td>HSN CODE</td>
+          <td>1</td>
+          <td>MRP</td>
+          <td>DISCOUNT</td>
+          <td>Listing Price (excluding GST)</td>
+          <td class="align-left">
+            IGST @ 5%, say Rs 75
+          </td>
+          <td>Total (Total of Taxable Value and Taxes)</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td class="align-left">Product Description 4</td>
+          <td>HSN CODE</td>
+          <td>5</td>
+          <td>MRP</td>
+          <td>DISCOUNT</td>
+          <td>Listing Price (excluding GST)</td>
+          <td class="align-left">
+            SGST @ 2.50%, say Rs 50<br>
+            CGST @ 2.50%, say Rs 50<br>
+            SGST @ 9%, say Rs 50
+          </td>
+          <td>Total (Total of Taxable Value and Taxes)</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td class="align-left">Product Description 5</td>
+          <td>HSN CODE</td>
+          <td>4</td>
+          <td>MRP</td>
+          <td>DISCOUNT</td>
+          <td>Listing Price (excluding GST)</td>
+          <td class="align-left">
+            CGST @ 9%, say Rs 125
+          </td>
+          <td>Total (Total of Taxable Value and Taxes)</td>
+        </tr>
+      </tbody>
+    </table>
+    
+    <!-- Signature Section -->
+    <div class="signature-section">
+      <div class="info-label">Authorized signatory</div>
+      <div>option to upload (admin signature)</div>
+    </div>
+  </div>
+</body>
+</html>

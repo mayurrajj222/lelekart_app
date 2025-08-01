@@ -1,0 +1,132 @@
+  // Footer Content Methods
+  async getFooterContents(section?: string, isActive?: boolean): Promise<FooterContent[]> {
+    try {
+      let query = db.select().from(footerContent);
+      
+      if (section) {
+        query = query.where(eq(footerContent.section, section));
+      }
+      
+      if (isActive !== undefined) {
+        query = query.where(eq(footerContent.isActive, isActive));
+      }
+      
+      // Always return in order
+      return await query.orderBy(footerContent.section, footerContent.order);
+    } catch (error) {
+      console.error("Error getting footer contents:", error);
+      return [];
+    }
+  }
+  
+  async getFooterContentById(id: number): Promise<FooterContent | undefined> {
+    try {
+      const [content] = await db.select()
+        .from(footerContent)
+        .where(eq(footerContent.id, id));
+      return content;
+    } catch (error) {
+      console.error(`Error getting footer content with ID ${id}:`, error);
+      return undefined;
+    }
+  }
+  
+  async createFooterContent(content: InsertFooterContent): Promise<FooterContent> {
+    try {
+      const [newContent] = await db.insert(footerContent)
+        .values({
+          ...content,
+          lastUpdated: new Date()
+        })
+        .returning();
+      return newContent;
+    } catch (error) {
+      console.error("Error creating footer content:", error);
+      throw new Error("Failed to create footer content");
+    }
+  }
+  
+  async updateFooterContent(id: number, content: Partial<FooterContent>): Promise<FooterContent> {
+    try {
+      const [existingContent] = await db.select()
+        .from(footerContent)
+        .where(eq(footerContent.id, id));
+      
+      if (!existingContent) {
+        throw new Error(`Footer content with ID ${id} not found`);
+      }
+      
+      const [updatedContent] = await db.update(footerContent)
+        .set({
+          ...content,
+          lastUpdated: new Date()
+        })
+        .where(eq(footerContent.id, id))
+        .returning();
+      
+      return updatedContent;
+    } catch (error) {
+      console.error(`Error updating footer content ${id}:`, error);
+      throw new Error("Failed to update footer content");
+    }
+  }
+  
+  async deleteFooterContent(id: number): Promise<void> {
+    try {
+      await db.delete(footerContent)
+        .where(eq(footerContent.id, id));
+    } catch (error) {
+      console.error(`Error deleting footer content ${id}:`, error);
+      throw new Error("Failed to delete footer content");
+    }
+  }
+  
+  async toggleFooterContentActive(id: number): Promise<FooterContent> {
+    try {
+      const [content] = await db.select()
+        .from(footerContent)
+        .where(eq(footerContent.id, id));
+        
+      if (!content) {
+        throw new Error(`Footer content with ID ${id} not found`);
+      }
+      
+      const [updatedContent] = await db.update(footerContent)
+        .set({ 
+          isActive: !content.isActive,
+          lastUpdated: new Date()
+        })
+        .where(eq(footerContent.id, id))
+        .returning();
+      
+      return updatedContent;
+    } catch (error) {
+      console.error(`Error toggling footer content active state for ID ${id}:`, error);
+      throw new Error("Failed to toggle footer content active state");
+    }
+  }
+  
+  async updateFooterContentOrder(id: number, order: number): Promise<FooterContent> {
+    try {
+      const [content] = await db.select()
+        .from(footerContent)
+        .where(eq(footerContent.id, id));
+        
+      if (!content) {
+        throw new Error(`Footer content with ID ${id} not found`);
+      }
+      
+      const [updatedContent] = await db.update(footerContent)
+        .set({ 
+          order,
+          lastUpdated: new Date()
+        })
+        .where(eq(footerContent.id, id))
+        .returning();
+      
+      return updatedContent;
+    } catch (error) {
+      console.error(`Error updating footer content order for ID ${id}:`, error);
+      throw new Error("Failed to update footer content order");
+    }
+  }
