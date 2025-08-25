@@ -564,7 +564,12 @@ export default function AddressesScreen() {
                       const digits = v.replace(/[^0-9]/g, '').slice(0, 10);
                       setEditForm(f => ({ ...f, phone: digits }));
                       if (digits.length === 10) {
-                        setFieldErrors(prev => ({ ...prev, phone: '' }));
+                        // Check if phone number starts with 6, 7, 8, or 9
+                        if (/^[6789]/.test(digits)) {
+                          setFieldErrors(prev => ({ ...prev, phone: '' }));
+                        } else {
+                          setFieldErrors(prev => ({ ...prev, phone: 'Phone number must start with 6, 7, 8, or 9' }));
+                        }
                       } else if (digits.length > 0 && digits.length < 10) {
                         setFieldErrors(prev => ({ ...prev, phone: 'Enter a valid 10-digit phone number' }));
                       } else {
@@ -731,7 +736,12 @@ export default function AddressesScreen() {
                       const digits = v.replace(/[^0-9]/g, '').slice(0, 10);
                       setAddForm(f => ({ ...f, phone: digits }));
                       if (digits.length === 10) {
-                        setAddFieldErrors(prev => ({ ...prev, phone: '' }));
+                        // Check if phone number starts with 6, 7, 8, or 9
+                        if (/^[6789]/.test(digits)) {
+                          setAddFieldErrors(prev => ({ ...prev, phone: '' }));
+                        } else {
+                          setAddFieldErrors(prev => ({ ...prev, phone: 'Phone number must start with 6, 7, 8, or 9' }));
+                        }
                       } else if (digits.length > 0 && digits.length < 10) {
                         setAddFieldErrors(prev => ({ ...prev, phone: 'Enter a valid 10-digit phone number' }));
                       } else {

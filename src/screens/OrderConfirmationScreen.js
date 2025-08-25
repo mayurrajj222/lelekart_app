@@ -5,6 +5,9 @@ const LELE_IMAGE = require('./assets/lele.png');
 
 export default function OrderConfirmationScreen({ route, navigation }) {
   const { order } = route.params || {};
+  const addDays = (dateStr, days) => {
+    try { const d = new Date(dateStr || new Date()); d.setDate(d.getDate() + days); return d; } catch { return null; }
+  };
   // Animation for logo and card
   const logoAnim = React.useRef(new Animated.Value(-80)).current;
   const logoOpacity = React.useRef(new Animated.Value(0)).current;
@@ -51,6 +54,10 @@ export default function OrderConfirmationScreen({ route, navigation }) {
             <>
               <Text style={styles.orderIdMood}>Order ID: {order.id || order.orderId}</Text>
               <Text style={styles.orderTotalMood}>Total: ₹{order.total || order.amount}</Text>
+              {/* Show expected delivery (order just placed) */}
+              {!!addDays(order.date, 6) && (
+                <Text style={[styles.orderTotalMood, { color: '#ff9800' }]}>Expected delivery by: {addDays(order.date, 6).toLocaleDateString()}</Text>
+              )}
               {/* Show full shipping address */}
               {(() => {
                 let shipping = order.shippingDetails;

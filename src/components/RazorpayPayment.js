@@ -15,6 +15,9 @@ import { API_BASE } from '../lib/api';
 const RazorpayPayment = ({ 
   amount, 
   shippingDetails, 
+  cartItems,
+  walletDiscount = 0,
+  walletCoinsUsed = 0,
   onSuccess, 
   onError,
   onCancel 
@@ -60,6 +63,12 @@ const RazorpayPayment = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
+        body: JSON.stringify({
+          cartItems: cartItems || [],
+          shippingDetails: shippingDetails,
+          walletDiscount: walletDiscount,
+          walletCoinsUsed: walletCoinsUsed,
+        }),
       });
       
       if (!response.ok) {
@@ -85,6 +94,8 @@ const RazorpayPayment = ({
           razorpayOrderId: orderId,
           razorpaySignature: signature,
           shippingDetails: shippingDetails,
+          walletDiscount: walletDiscount,
+          walletCoinsUsed: walletCoinsUsed,
         }),
       });
       

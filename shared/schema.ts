@@ -148,6 +148,34 @@ export const products = pgTable("products", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Product Variants schema
+export const productVariants = pgTable("product_variants", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  color: text("color"),
+  size: text("size"),
+  price: doublePrecision("price").notNull(),
+  mrp: doublePrecision("mrp"),
+  stock: integer("stock").notNull().default(0),
+  weight: doublePrecision("weight"),
+  images: jsonb("images"), // Store variant-specific images
+  sku: text("sku"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertProductVariantSchema = createInsertSchema(productVariants).pick({
+  productId: true,
+  color: true,
+  size: true,
+  price: true,
+  mrp: true,
+  stock: true,
+  weight: true,
+  images: true,
+  sku: true,
+});
+
 // Category schema
 export const categories = pgTable("categories", {
   id: serial("id").primaryKey(),
@@ -210,4 +238,22 @@ export const orderItems = pgTable("order_items", {
   price: doublePrecision("price").notNull(),
   variant: text("variant"), // JSON string for variant details
   createdAt: timestamp("created_at").defaultNow(),
-}); 
+});
+
+// Relations
+export const productsRelations = relations(products, ({ many }) => ({
+  variants: many(productVariants),
+}));
+
+export const productVariantsRelations = relations(productVariants, ({ one }) => ({
+  product: one(products, {
+    fields: [productVariants.productId],
+    references: [products.id],
+  }),
+}));
+
+// Type definitions
+export type Product = typeof products.$inferSelect;
+export type InsertProduct = typeof products.$inferInsert;
+export type ProductVariant = typeof productVariants.$inferSelect;
+export type InsertProductVariant = typeof productVariants.$inferInsert; 

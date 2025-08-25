@@ -155,7 +155,6 @@ const RewardsScreen = () => {
             </View>
           </Card.Content>
           <Card.Actions>
-            <Button>Learn More</Button>
             <Button onPress={handleRedeemPoints}>Redeem Points</Button>
           </Card.Actions>
         </Card>

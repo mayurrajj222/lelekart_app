@@ -1,0 +1,42 @@
+7
+Console.js:61 Warning: Maximum update depth exceeded. This can happen when a component calls setState inside useEffect, but useEffect either doesn't have a dependency array, or one of the dependencies changes on every render.
+    at https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.repli…ner/workspace/node_modules/.vite/deps/chunk-ECKVP5SZ.js?v=be0f600f:1982:13
+    at https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.repli…space/node_modules/.vite/deps/@radix-ui_react-popover.js?v=be0f600f:116:13
+    at Provider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.repli…unner/workspace/node_modules/.vite/deps/chunk-GE6KQUNF.js?v=be0f600f:38:15)
+    at Provider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.repli…ner/workspace/node_modules/.vite/deps/chunk-ECKVP5SZ.js?v=be0f600f:1917:15)
+    at Popper (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.repli…ner/workspace/node_modules/.vite/deps/chunk-ECKVP5SZ.js?v=be0f600f:1974:11)
+    at Popover (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.repli…rkspace/node_modules/.vite/deps/@radix-ui_react-popover.js?v=be0f600f:65:5)
+    at NotificationBell (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/components/notifications/notification-bell.tsx:33:27)
+    at div
+    at div
+    at div
+    at header
+    at div
+    at AdminLayout (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/components/layout/admin-layout.tsx:67:31)
+    at AdminProductsContent (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/pages/admin/products.tsx:121:33)
+    at AdminProducts (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/pages/admin/products.tsx:110:28)
+    at ProtectedRoute (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/lib/protected-route.tsx:24:3)
+    at Route (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.repli…/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=be0f600f:191:16)
+    at Switch (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.repli…/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=be0f600f:247:17)
+    at div
+    at Provider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.repli…unner/workspace/node_modules/.vite/deps/chunk-GE6KQUNF.js?v=be0f600f:38:15)
+    at TooltipProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.repli…rkspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=be0f600f:64:5)
+    at AIAssistantProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/context/ai-assistant-context.tsx:23:39)
+    at NotificationProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/contexts/notification-context.tsx:23:40)
+    at WishlistProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/context/wishlist-context.tsx:35:36)
+    at CartProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/context/cart-context.tsx:24:32)
+    at WalletProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/context/wallet-context.tsx:40:34)
+    at AuthProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/hooks/use-auth.tsx:27:32)
+    at QueryClientProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.repli…rkspace/node_modules/.vite/deps/@tanstack_react-query.js?v=be0f600f:2805:3)
+    at App
+    at CartProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/context/cart-context.tsx?v=8Qc28aeinCq_Mnx14eYAL:24:32)
+    at AuthProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/src/hooks/use-auth.tsx?v=8Qc28aeinCq_Mnx14eYAL:27:32)
+    at QueryClientProvider (https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.repli…rkspace/node_modules/.vite/deps/@tanstack_react-query.js?v=be0f600f:2805:3)
+
+Console.js:61 Fetched subcategories for table display (10 total)
+_app-e1757f97926d111b.js:38 Invalid href 'https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev//product/4598' passed to next/router in page: '/replEnvironmentDesktop'. Repeated forward-slashes (//) or backslashes \ are not valid in the href.
+2
+
+ Chrome is moving towards a new experience that allows users to choose to browse without third-party cookies.
+﻿
+

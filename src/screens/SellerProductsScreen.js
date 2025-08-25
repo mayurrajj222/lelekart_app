@@ -120,38 +120,15 @@ export default function SellerProductsScreen({ route, navigation }) {
           </Text>
         </View>
         {quantity > 0 ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-            <TouchableOpacity
-              style={[styles.addToCartBtn, { backgroundColor: '#e91e63', paddingHorizontal: 10 }]}
-              onPress={e => {
-                e.stopPropagation();
-                if (quantity === 1) {
-                  addToCart(item, -1);
-                } else {
-                  addToCart(item, -1);
-                }
-              }}
-            >
-              <Icon name="minus" size={18} color="#fff" />
-            </TouchableOpacity>
-            <Text style={{ marginHorizontal: 10, fontWeight: 'bold', color: '#222', fontSize: 16 }}>
-              {quantity}
-            </Text>
-            <TouchableOpacity
-              style={[styles.addToCartBtn, { backgroundColor: '#43a047', paddingHorizontal: 10 }]}
-              onPress={e => {
-                e.stopPropagation();
-                if (quantity === 0) {
-                  addToCart(item, 1);
-                  Alert.alert('Success', 'Product added successfully');
-                } else {
-                  addToCart(item, 1);
-                }
-              }}
-            >
-              <Icon name="plus" size={18} color="#fff" />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={[styles.addToCartBtn, { backgroundColor: '#2874f0' }]}
+            onPress={e => {
+              e.stopPropagation();
+              navigation.navigate('MainTabs', { screen: 'Cart' });
+            }}
+          >
+            <Text style={styles.addToCartText}>Go to Cart</Text>
+          </TouchableOpacity>
         ) : (
           <TouchableOpacity
             style={styles.addToCartBtn}

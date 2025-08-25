@@ -11,7 +11,7 @@ import {
   sendOTPEmail
 } from "./helpers/email";
 import { z } from "zod";
-import { createAdminUser, isSpecialAdmin } from './adminUser';
+// Removed admin imports - no admins allowed
 
 declare global {
   namespace Express {
@@ -39,11 +39,33 @@ const verifyOtpSchema = z.object({
 const registerSchema = z.object({
   username: z.string().min(3),
   email: z.string().email(),
-  role: z.enum(["buyer", "seller", "admin"]).default("buyer"),
+  role: z.literal("buyer").default("buyer"),
   name: z.string().optional(),
   phone: z.string().optional(),
   address: z.string().optional(),
 });
+
+export function authenticateToken(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  // After authentication, check if the user is a buyer
+  if (req.user && req.user.role !== "buyer") {
+    // Forbid access for seller and admin roles and log them out
+    return req.logout((err) => {
+      if (err) {
+        console.error("Error during logout after unauthorized role access:", err);
+        return res.status(500).json({ error: "Internal server error." });
+      }
+      return res.status(403).json({ error: "Seller and admin not allowed to login in app." });
+    });
+  }
+  next();
+}
 
 export function setupAuth(app: Express) {
   // Generate a secure secret for sessions
@@ -64,26 +86,12 @@ export function setupAuth(app: Express) {
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
-  createAdminUser().catch(err => {
-    console.error("Failed to create special admin user:", err);
-  });
+  // Removed admin user creation - no admins allowed
   app.post("/api/auth/admin-login", (async (req: any, res: any, next: any) => {
     try {
       const { email } = req.body;
-      if (!isSpecialAdmin(email)) {
-        return res.status(403).json({ error: "This login method is restricted to authorized administrators only" });
-      }
-      const adminUser = await storage.getUserByEmail(email);
-      if (!adminUser) {
-        return res.status(404).json({ error: "Admin user not found" });
-      }
-      if (adminUser.role !== 'admin') {
-        return res.status(403).json({ error: "Unauthorized access" });
-      }
-      req.login(adminUser, (err: any) => {
-        if (err) return next(err);
-        return res.status(200).json({ user: adminUser, message: "Admin login successful" });
-      });
+      // Block all admin login attempts with the consistent message
+      return res.status(403).json({ error: "Seller and admin not allowed to login in app." });
     } catch (error) {
       console.error("Error in admin login:", error);
       next(error);
@@ -122,6 +130,11 @@ export function setupAuth(app: Express) {
             console.warn('Impersonated user not found:', userId);
             return done(null, null);
           }
+                  // Block all seller and admin roles from being deserialized
+        if (impersonatedUser.role !== "buyer") {
+          console.warn(`Access denied during deserialization for impersonated user ${impersonatedUser.email} (role: ${impersonatedUser.role})`);
+          return done(null, false, { message: "Seller and admin not allowed to login in app." });
+        }
           (impersonatedUser as any).isImpersonating = true;
           (impersonatedUser as any).originalUserId = serialized.originalUserId;
           return done(null, impersonatedUser);
@@ -135,6 +148,11 @@ export function setupAuth(app: Express) {
         if (!user) {
           console.warn('User not found:', userId);
           return done(null, null);
+        }
+        // Block all seller and admin roles from being deserialized
+        if (user.role !== "buyer") {
+          console.warn(`Access denied during deserialization for user ${user.email} (role: ${user.role})`);
+          return done(null, false, { message: "Seller and admin not allowed to login in app." });
         }
         done(null, user);
       } catch (error) {
@@ -156,6 +174,11 @@ export function setupAuth(app: Express) {
       }
       const { email } = validation.data;
       console.log(`Processing OTP request for email: ${email}`);
+      // Check if user exists and if their role is restricted
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser && (existingUser.role === "seller" || existingUser.role === "admin")) {
+        return res.status(403).json({ error: "Seller and admin not allowed to login in app." });
+      }
       const otp = await generateOTP();
       console.log(`Generated OTP for ${email}: ${otp}`);
       try {
@@ -191,6 +214,10 @@ export function setupAuth(app: Express) {
       }
       const existingUser = await storage.getUserByEmail(email);
       if (existingUser) {
+        // Only allow 'buyer' roles to log in via OTP
+        if (existingUser.role !== "buyer") {
+          return res.status(403).json({ error: "Seller and admin not allowed to login in app." });
+        }
         req.login(existingUser, (err: any) => {
           if (err) return next(err);
           return res.status(200).json({ user: existingUser, isNewUser: false, message: "Login successful" });
@@ -281,27 +308,10 @@ export function setupAuth(app: Express) {
   });
   app.post("/api/admin/impersonate/:userId", (async (req: any, res: any, next: any) => {
     try {
-      if (!req.isAuthenticated()) return res.sendStatus(401);
-      if (req.user.role !== 'admin') return res.status(403).json({ error: "Only administrators can impersonate users" });
-      if (req.user.isImpersonating) {
-        return res.status(400).json({ error: "You are already impersonating a user. Please end the current impersonation first." });
-      }
-      const targetUserId = parseInt(req.params.userId);
-      if (req.user.id === targetUserId) {
-        return res.status(400).json({ error: "You cannot impersonate yourself" });
-      }
-      const targetUser = await storage.getUser(targetUserId);
-      if (!targetUser) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      const impersonatedUser = { ...targetUser, isImpersonating: true, originalUserId: req.user.id };
-      console.log(`Admin ${req.user.username} (ID: ${req.user.id}) started impersonating user ${targetUser.username} (ID: ${targetUser.id})`);
-      req.login(impersonatedUser, (err: any) => {
-        if (err) return next(err);
-        return res.status(200).json({ message: `Now impersonating ${targetUser.username}`, user: { ...targetUser, isImpersonating: true, originalUserId: req.user.id } });
-      });
+      // Block all impersonation attempts
+      return res.status(403).json({ error: "Seller and admin not allowed to login in app." });
     } catch (error) {
-      console.error("Error starting impersonation:", error);
+      console.error("Error in impersonation:", error);
       next(error);
     }
   }) as any);

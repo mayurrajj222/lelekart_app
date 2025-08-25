@@ -9,6 +9,16 @@ function formatDate(dateStr) {
   return d.toLocaleDateString();
 }
 
+function addDays(dateStr, days) {
+  try {
+    const d = new Date(dateStr);
+    d.setDate(d.getDate() + days);
+    return d;
+  } catch {
+    return null;
+  }
+}
+
 function getProductImage(product) {
   return (
     product?.imageUrl ||
@@ -97,6 +107,10 @@ export default function OrderDetailScreen() {
           <Text style={styles.label}>Status: <Text style={[styles.value, { color: '#2874f0' }]}>{order.status?.toUpperCase()}</Text></Text>
           <Text style={styles.label}>Total: <Text style={styles.value}>₹{order.total}</Text></Text>
           <Text style={styles.label}>Payment: <Text style={styles.value}>{order.paymentMethod}</Text></Text>
+          {/* Show expected delivery unless order is cancelled */}
+          {(!order.status || String(order.status).toLowerCase() !== 'cancelled') && !!addDays(order.date, 6) && (
+            <Text style={styles.label}>Expected delivery by: <Text style={[styles.value, { color: '#ff9800' }]}>{formatDate(addDays(order.date, 6))}</Text></Text>
+          )}
         </View>
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Shipping Details</Text>
@@ -120,18 +134,7 @@ export default function OrderDetailScreen() {
             </View>
           )) : <Text style={styles.value}>No items found.</Text>}
         </View>
-        {order.trackingId && (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Tracking Info</Text>
-            <Text style={styles.label}>Courier: <Text style={styles.value}>{order.courierName || '-'}</Text></Text>
-            <Text style={styles.label}>Tracking ID: <Text style={styles.value}>{order.trackingId}</Text></Text>
-            {order.trackingUrl ? (
-              <TouchableOpacity onPress={() => navigation.navigate('WebViewScreen', { url: order.trackingUrl })}>
-                <Text style={[styles.value, { color: '#2874f0', textDecorationLine: 'underline' }]}>Track Package</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        )}
+        {/* Tracking Info hidden per requirement */}
       </ScrollView>
     </View>
   );

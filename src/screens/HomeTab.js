@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Image, FlatList, TouchableOpacity, SafeAreaView, Animated, Alert, Dimensions, TextInput, Keyboard, Linking, Modal, ScrollView, PermissionsAndroid, Platform } from 'react-native';
+import { View, Text, StyleSheet, Image, FlatList, TouchableOpacity, SafeAreaView, Animated, Alert, Dimensions, TextInput, Keyboard, Linking, Modal, ScrollView, PermissionsAndroid, Platform, BackHandler } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { API_BASE } from '../lib/api';
 import { useCart } from '../context/CartContext';
@@ -9,6 +9,7 @@ import { AuthContext } from '../context/AuthContext';
 import DealOfTheDay from './DealOfTheDay';
 import Carousel from 'react-native-reanimated-carousel';
 import { Picker } from '@react-native-picker/picker';
+import EnhancedSearchBox from '../components/EnhancedSearchBox';
 
 
 const BG_IMAGE = require('./assets/image.png');
@@ -22,7 +23,7 @@ const CHOCOLATE = '#4E2E1E';
 const CHOCOLATE_LIGHT = '#7B4A2D';
 const CHOCOLATE_ACCENT = '#D2691E';
 
-const MemoizedHomeTabHeader = React.memo(function HomeTabHeader({ onWishlistPress, onCameraPress, user, onProfilePress, search, setSearch, onSearchPress, profileUsername, onVoiceSearch, isListening }) {
+const MemoizedHomeTabHeader = React.memo(function HomeTabHeader({ onWishlistPress, onCameraPress, user, onProfilePress, search, setSearch, onSearchPress, profileUsername, products, handleSearchChange, showSearchSuggestions, setShowSearchSuggestions }) {
   return (
     <>
       <View style={styles.logoHeaderWrap}>
@@ -30,46 +31,44 @@ const MemoizedHomeTabHeader = React.memo(function HomeTabHeader({ onWishlistPres
       </View>
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={onProfilePress} activeOpacity={0.7}>
-            <Image
-              source={user?.profileImage ? { uri: user.profileImage } : require('./assets/avatar.png')}
-              style={styles.profileAvatar}
-            />
-          </TouchableOpacity>
+          {showSearchSuggestions ? (
+            <TouchableOpacity 
+              onPress={() => {
+                setShowSearchSuggestions(false);
+                setSearch('');
+              }} 
+              style={styles.backButton}
+              activeOpacity={0.7}
+            >
+              <Icon name="arrow-left" size={24} color="#2874f0" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={onProfilePress} activeOpacity={0.7}>
+              <Image
+                source={user?.profileImage ? { uri: user.profileImage } : require('./assets/avatar.png')}
+                style={styles.profileAvatar}
+              />
+            </TouchableOpacity>
+          )}
           <View style={{ marginLeft: 10 }}>
-            <Text style={styles.welcomeText}>Welcome{profileUsername ? ` ${profileUsername}!` : '!'}</Text>
+            <Text style={styles.welcomeText}>
+              {showSearchSuggestions ? 'Search Results' : `Welcome${profileUsername ? ` ${profileUsername}!` : '!'}`}
+            </Text>
           </View>
         </View>
         <TouchableOpacity style={styles.headerIconBtn} onPress={onWishlistPress}>
           <Icon name="heart-outline" size={28} color="#2874f0" />
         </TouchableOpacity>
       </View>
-      <View style={styles.searchBarRow}>
-        <TouchableOpacity onPress={onSearchPress}>
-          <Icon name="magnify" size={22} color="#b6b1a9" style={{ marginLeft: 12, marginRight: 6 }} />
-        </TouchableOpacity>
-        <TextInput
-          style={styles.searchBar}
-          placeholder="What do you want to shop for today?"
-          placeholderTextColor="#b6b1a9"
+      <View style={{ marginHorizontal: 16, marginTop: 4, marginBottom: 6, zIndex: 1000 }}>
+        <EnhancedSearchBox
           value={search}
-          onChangeText={setSearch}
-          returnKeyType="search"
-          onSubmitEditing={onSearchPress}
+          onChangeText={handleSearchChange}
+          onSubmit={onSearchPress}
+          products={products}
+          containerStyle={{}}
+          onSuggestionsChange={setShowSearchSuggestions}
         />
-        <TouchableOpacity 
-          style={[styles.headerIconBtn, isListening && styles.voiceActive]} 
-          onPress={onVoiceSearch}
-        >
-          <Icon 
-            name={isListening ? "microphone" : "microphone-outline"} 
-            size={22} 
-            color={isListening ? "#ff4444" : "#b6b1a9"} 
-          />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.headerIconBtn} onPress={onCameraPress}>
-          <Icon name="camera-outline" size={22} color="#b6b1a9" />
-        </TouchableOpacity>
       </View>
     </>
   );
@@ -94,6 +93,8 @@ export default function HomeTab() {
   const [search, setSearch] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+  const [searchHistory, setSearchHistory] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showDropAnim, setShowDropAnim] = useState(false);
   const [pressedIndex, setPressedIndex] = useState(null);
@@ -110,11 +111,6 @@ export default function HomeTab() {
     { label: 'help@lelekart.com', value: 'help@lelekart.com' },
   ];
   
-  // Voice search states
-  const [isListening, setIsListening] = useState(false);
-  const [voiceModalVisible, setVoiceModalVisible] = useState(false);
-  const [voiceInput, setVoiceInput] = useState('');
-
   // Real-time profile username for header
   const [profileUsername, setProfileUsername] = useState(user?.username || '');
   useFocusEffect(
@@ -129,6 +125,14 @@ export default function HomeTab() {
         .then(data => {
           if (data && data.username) setProfileUsername(data.username);
         });
+      
+      // Clear search when returning to home tab
+      if (searching || showSearchSuggestions) {
+        setSearch('');
+        setSearching(false);
+        setShowSearchSuggestions(false);
+        setSearchResults([]);
+      }
     }, [])
   );
 
@@ -136,6 +140,24 @@ export default function HomeTab() {
     fetchAllProducts();
     setTimeout(() => setShowDropAnim(true), 200);
   }, []);
+
+  // Handle hardware back button
+  useEffect(() => {
+    const backAction = () => {
+      if (searching || showSearchSuggestions) {
+        setSearch('');
+        setSearching(false);
+        setShowSearchSuggestions(false);
+        setSearchResults([]);
+        return true; // Prevent default back action
+      }
+      return false; // Allow default back action
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+
+    return () => backHandler.remove();
+  }, [searching, showSearchSuggestions]);
 
 
 
@@ -162,11 +184,49 @@ export default function HomeTab() {
 
   const handleSearchChange = React.useCallback((text) => {
     setSearch(text);
-    if (text.trim() === '' && searching) {
-        setSearching(false);
-        setSearchResults([]);
+    
+    if (text.trim() === '') {
+      setSearching(false);
+      setSearchResults([]);
+      setShowSearchSuggestions(true); // Show suggestions when search is empty
+      return;
     }
-  }, [searching]);
+    
+    // Show real-time search suggestions after 2 characters
+    if (text.trim().length >= 2) {
+      const lowerQuery = text.trim().toLowerCase();
+      const suggestions = products.filter(
+        p => p.name && p.name.toLowerCase().includes(lowerQuery)
+      ).slice(0, 10); // Limit to 10 suggestions
+      
+      setSearchResults(suggestions);
+      setSearching(true);
+      setShowSearchSuggestions(false); // Hide suggestions when showing results
+    } else {
+      setSearching(false);
+      setSearchResults([]);
+      setShowSearchSuggestions(true); // Show suggestions for short queries
+    }
+  }, [products]);
+
+  // Handle search suggestion selection
+  const handleSearchSuggestion = (suggestion) => {
+    setSearch(suggestion);
+    setShowSearchSuggestions(false);
+    // Add to search history
+    if (!searchHistory.includes(suggestion)) {
+      setSearchHistory(prev => [suggestion, ...prev.slice(0, 9)]); // Keep last 10 searches
+    }
+    // Auto-trigger search
+    setTimeout(() => {
+      handleSearchPress();
+    }, 300);
+  };
+
+  // Clear search history
+  const clearSearchHistory = () => {
+    setSearchHistory([]);
+  };
 
   useEffect(() => {
     async function fetchFooterLinks() {
@@ -247,9 +307,12 @@ export default function HomeTab() {
   };
 
   const getImageUrl = (item) => {
+    // First try imageUrl
     if (item.imageUrl && typeof item.imageUrl === 'string' && item.imageUrl.trim() !== '') {
       return item.imageUrl;
     }
+    
+    // Then try images array
     if (Array.isArray(item.images)) {
       // Find the first valid, non-empty string
       const validImage = item.images.find(
@@ -262,8 +325,31 @@ export default function HomeTab() {
         } else if (validImage.startsWith('/')) {
           return `${API_BASE}${validImage}`;
         }
+        return validImage;
       }
     }
+    
+    // Try parsing images if it's a JSON string
+    if (item.images && typeof item.images === 'string') {
+      try {
+        const parsedImages = JSON.parse(item.images);
+        if (Array.isArray(parsedImages) && parsedImages.length > 0) {
+          const firstImage = parsedImages[0];
+          if (typeof firstImage === 'string' && firstImage.trim() !== '') {
+            if (firstImage.startsWith('http')) {
+              return firstImage;
+            } else if (firstImage.startsWith('/')) {
+              return `${API_BASE}${firstImage}`;
+            }
+            return firstImage;
+          }
+        }
+      } catch (e) {
+        console.log('Failed to parse images JSON:', e);
+      }
+    }
+    
+    // Fallback to placeholder
     return 'https://placehold.co/160x160?text=No+Image';
   };
 
@@ -311,7 +397,7 @@ export default function HomeTab() {
   };
 
   const handleGoToCart = () => {
-    navigation.navigate('Cart');
+    navigation.navigate('MainTabs', { screen: 'Cart' });
   };
 
   const handleDealViewProduct = () => {
@@ -322,72 +408,84 @@ export default function HomeTab() {
 
   const renderListHeader = () => (
     <>
-      {/* Banner Section */}
-      <View style={{ height: 220, marginTop: 10, marginHorizontal: 0, alignItems: 'center' }}>
-        {loadingBanner ? (
-          <Text style={{ color: '#fff', fontSize: 18, textAlign: 'center', marginTop: 60 }}>Loading banners...</Text>
-        ) : banners.length > 0 ? (
-          <Carousel
-            width={width * 0.85}
-            height={200}
-            data={banners}
-            autoPlay
-            autoPlayInterval={4000}
-            loop
-            style={{ alignSelf: 'center' }}
-            panGestureHandlerProps={{ activeOffsetX: [-10, 10] }}
-            renderItem={({ item }) => (
-              <View style={styles.webBannerContainer}>
-                <View style={styles.webBannerLeft}>
-                  {item.badgeText ? (
-                    <View style={styles.webBannerBadge}>
-                      <Text style={styles.webBannerBadgeText}>{item.badgeText}</Text>
-                    </View>
-                  ) : null}
-                  <Text style={styles.webBannerTitle}>{item.title}</Text>
-                  {item.subtitle ? (
-                    <Text style={styles.webBannerSubtitle}>{item.subtitle}</Text>
-                  ) : null}
-                  {(item.title && item.title.toLowerCase().includes('raw honey bee')) ? (
-                    <Text style={styles.webBannerDescription}>Pure, natural honey directly from the hive. No additives, no preservatives. Taste the difference!</Text>
-                  ) : null}
-                  {item.buttonText ? (
-                    <TouchableOpacity
-                      style={styles.webBannerButton}
-                      activeOpacity={0.8}
-                      onPress={() => {
-                        const title = item.title ? item.title.toLowerCase() : '';
-                        if (title.includes('great indian festival')) {
-                          navigation.navigate('CategoryTab', { category: 'Mobiles' });
-                        } else if (title.includes('jewellery')) {
-                          navigation.navigate('CategoryTab', { category: 'Appliances' });
-                        } else if (item.productId) {
-                          navigation.navigate('ProductDetail', { productId: item.productId });
-                        } else if (item.category) {
-                          navigation.navigate('CategoryTab', { category: item.category });
-                        }
-                      }}
-                    >
-                      <Text style={styles.webBannerButtonText}>{item.buttonText}</Text>
-                    </TouchableOpacity>
-                  ) : null}
+      {/* Banner Section - Hide during search */}
+      {!searching && !showSearchSuggestions && (
+        <View style={{ height: 220, marginTop: 10, marginHorizontal: 0, alignItems: 'center' }}>
+          {loadingBanner ? (
+            <Text style={{ color: '#fff', fontSize: 18, textAlign: 'center', marginTop: 60 }}>Loading banners...</Text>
+          ) : banners.length > 0 ? (
+            <Carousel
+              width={width * 0.85}
+              height={200}
+              data={banners}
+              autoPlay
+              autoPlayInterval={4000}
+              loop
+              style={{ alignSelf: 'center' }}
+              panGestureHandlerProps={{ activeOffsetX: [-10, 10] }}
+              renderItem={({ item }) => (
+                <View style={styles.webBannerContainer}>
+                  <View style={styles.webBannerLeft}>
+                    {item.badgeText ? (
+                      <View style={styles.webBannerBadge}>
+                        <Text style={styles.webBannerBadgeText}>{item.badgeText}</Text>
+                      </View>
+                    ) : null}
+                    <Text style={styles.webBannerTitle}>{item.title}</Text>
+                    {item.subtitle ? (
+                      <Text style={styles.webBannerSubtitle}>{item.subtitle}</Text>
+                    ) : null}
+                    {(item.title && item.title.toLowerCase().includes('raw honey bee')) ? (
+                      <Text style={styles.webBannerDescription}>Pure, natural honey directly from the hive. No additives, no preservatives. Taste the difference!</Text>
+                    ) : null}
+                    {item.buttonText ? (
+                      <TouchableOpacity
+                        style={styles.webBannerButton}
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          // Follow reference behavior: link to product if productId provided, else to category (and optional subcategory)
+                          if (item.productId) {
+                            navigation.navigate('ProductDetail', { productId: item.productId });
+                            return;
+                          }
+                          if (item.category) {
+                            // Navigate directly to the product list for this category
+                            navigation.navigate('ProductList', { category: item.category });
+                            return;
+                          }
+                          // Fallback: try using subtitle hints for known categories
+                          const hint = (item.subtitle || item.title || '').toLowerCase();
+                          const known = ['electronics','fashion','home','appliances','mobiles','beauty','toys','grocery'];
+                          const matched = known.find(k => hint.includes(k));
+                          if (matched) {
+                            const categoryName = matched.charAt(0).toUpperCase() + matched.slice(1);
+                            navigation.navigate('ProductList', { category: categoryName });
+                          }
+                        }}
+                      >
+                        <Text style={styles.webBannerButtonText}>{item.buttonText}</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                  <View style={styles.webBannerRight}>
+                    <Image source={{ uri: item.imageUrl }} style={styles.webBannerImage} />
+                  </View>
                 </View>
-                <View style={styles.webBannerRight}>
-                  <Image source={{ uri: item.imageUrl }} style={styles.webBannerImage} />
-                </View>
-              </View>
-            )}
-          />
-        ) : (
-          <View style={styles.banner}>
-            <Image source={{ uri: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80' }} style={styles.bannerImage} />
-          </View>
-        )}
-      </View>
-      {/* Deal of the Day Section */}
-      <DealOfTheDay deal={dealOfTheDay} loading={loadingDeal} onAddToCart={handleDealAddToCart} onGoToCart={handleGoToCart} onViewProduct={handleDealViewProduct} inCart={isDealInCart} />
-      {/* Featured Products Section */}
-      {(!searching) && <>
+              )}
+            />
+          ) : (
+            <View style={styles.banner}>
+              <Image source={{ uri: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80' }} style={styles.bannerImage} />
+            </View>
+          )}
+        </View>
+      )}
+      {/* Deal of the Day Section - Hide during search */}
+      {!searching && !showSearchSuggestions && (
+        <DealOfTheDay deal={dealOfTheDay} loading={loadingDeal} onAddToCart={handleDealAddToCart} onGoToCart={handleGoToCart} onViewProduct={handleDealViewProduct} inCart={isDealInCart} />
+      )}
+      {/* Featured Products Section - Hide during search */}
+      {(!searching && !showSearchSuggestions) && <>
         <Text style={styles.sectionTitle}>Featured Products</Text>
         <View style={styles.productsSectionBg}>
           {loading ? (
@@ -423,6 +521,9 @@ export default function HomeTab() {
                         source={{ uri: getImageUrl(item) }}
                         style={styles.featuredProductImage}
                         resizeMode="cover"
+                        onError={(e) => {
+                          console.log('Featured image failed to load:', getImageUrl(item));
+                        }}
                       />
                       <TouchableOpacity
                         style={styles.wishlistButton}
@@ -508,7 +609,43 @@ export default function HomeTab() {
           })}
         </View>
       </>}
-      <Text style={styles.sectionTitle}>{searching ? 'Search Results' : 'All Products'}</Text>
+      {searching ? (
+        <View style={{ marginBottom: 16 }}>
+          <Text style={styles.sectionTitle}>Search Results</Text>
+          <Text style={{ color: '#666', fontSize: 14, textAlign: 'center', marginTop: 4 }}>
+            Showing results for "{search}"
+          </Text>
+        </View>
+      ) : showSearchSuggestions ? (
+        <View style={{ marginBottom: 16 }}>
+          {/* Search History */}
+          {searchHistory.length > 0 && (
+            <View style={{ marginBottom: 20 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={styles.sectionTitle}>Recent Searches</Text>
+                <TouchableOpacity onPress={clearSearchHistory}>
+                  <Text style={{ color: '#2874f0', fontSize: 14 }}>Clear</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {searchHistory.map((item, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.searchSuggestionChip}
+                    onPress={() => handleSearchSuggestion(item)}
+                  >
+                    <Icon name="history" size={16} color="#666" style={{ marginRight: 4 }} />
+                    <Text style={styles.searchSuggestionText}>{item}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+        </View>
+      ) : (
+        <Text style={styles.sectionTitle}>All Products</Text>
+      )}
     </>
   );
 
@@ -650,7 +787,14 @@ export default function HomeTab() {
           onPressOut={() => setPressedIndex(null)}
           activeOpacity={0.85}
         >
-          <Image source={{ uri: getImageUrl(item) }} style={styles.productImage} resizeMode="cover" />
+                                <Image 
+                        source={{ uri: getImageUrl(item) }} 
+                        style={styles.productImage} 
+                        resizeMode="cover"
+                        onError={(e) => {
+                          console.log('Image failed to load:', getImageUrl(item));
+                        }}
+                      />
           <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
             <Text style={styles.originalPrice}>₹{originalPrice}</Text>
@@ -680,28 +824,15 @@ export default function HomeTab() {
   const handleCameraPress = () => Alert.alert('Coming Soon', 'This feature is coming soon.');
   const handleProfilePress = () => navigation.navigate('Account', { screen: 'ProfileDetails' });
 
-  const handleVoiceSearch = () => {
-    setVoiceModalVisible(true);
-    setVoiceInput('');
-    setIsListening(false);
-  };
-
-
-
-  const handleVoiceSubmit = () => {
-    if (voiceInput.trim()) {
-      setSearch(voiceInput.trim());
-      setVoiceModalVisible(false);
-      setIsListening(false);
-      // Auto-trigger search after voice input
-      setTimeout(() => {
-        handleSearchPress();
-      }, 500);
-    }
-  };
-
   const handleSearchPress = async () => {
-    if (!search.trim()) return;
+    if (!search.trim()) {
+      // If search is empty, return to home view
+      setSearching(false);
+      setSearchResults([]);
+      setShowSearchSuggestions(false);
+      return;
+    }
+    
     Keyboard.dismiss();
     setSearching(true);
     setLoading(true);
@@ -733,6 +864,8 @@ export default function HomeTab() {
       setLoading(false);
     }
   };
+
+
 
   // Order products: Beauty (any category containing 'beauty') first, then others
   const beautyProducts = products.filter(p => (p.category || '').toLowerCase().includes('beauty'));
@@ -782,11 +915,13 @@ export default function HomeTab() {
               user={user}
               onProfilePress={handleProfilePress}
               search={search}
-              setSearch={handleSearchChange}
+              setSearch={setSearch}
               onSearchPress={handleSearchPress}
               profileUsername={profileUsername}
-              onVoiceSearch={handleVoiceSearch}
-              isListening={isListening}
+              products={products}
+              handleSearchChange={handleSearchChange}
+              showSearchSuggestions={showSearchSuggestions}
+              setShowSearchSuggestions={setShowSearchSuggestions}
             />
             {renderListHeader()}
           </>
@@ -863,87 +998,7 @@ export default function HomeTab() {
         </SafeAreaView>
       </Modal>
       
-      {/* Voice Search Modal */}
-      <Modal
-        visible={voiceModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => {
-          setVoiceModalVisible(false);
-          setIsListening(false);
-        }}
-      >
-        <View style={styles.voiceModalOverlay}>
-          <View style={styles.voiceModalContent}>
-            <View style={styles.voiceModalHeader}>
-              <Text style={styles.voiceModalTitle}>Voice Search</Text>
-              <TouchableOpacity onPress={() => {
-                setVoiceModalVisible(false);
-                setIsListening(false);
-              }}>
-                <Icon name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.voiceInputContainer}>
-              <View style={styles.voiceIconContainer}>
-                <Icon 
-                  name="microphone-outline" 
-                  size={64} 
-                  color="#2874f0" 
-                  style={styles.voiceIcon} 
-                />
-              </View>
-              
-              <Text style={styles.voiceModalSubtitle}>
-                Voice Search
-              </Text>
-              
-              <Text style={styles.voiceModalDescription}>
-                Use your device's built-in speech recognition:
-                {'\n\n'}1. Tap the microphone icon in your keyboard
-                {'\n'}2. Speak your search query
-                {'\n'}3. Copy the recognized text and paste it below
-                {'\n\n'}Or simply type your search query below:
-              </Text>
-              
-              <TextInput
-                style={styles.voiceInput}
-                placeholder="Type your search query here..."
-                placeholderTextColor="#999"
-                value={voiceInput}
-                onChangeText={setVoiceInput}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-                autoFocus={true}
-              />
-            </View>
-            
-            <View style={styles.voiceModalButtons}>
-              <TouchableOpacity 
-                style={styles.voiceCancelButton}
-                onPress={() => {
-                  setVoiceModalVisible(false);
-                  setIsListening(false);
-                }}
-              >
-                <Text style={styles.voiceCancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.voiceSubmitButton, !voiceInput.trim() && styles.voiceSubmitButtonDisabled]}
-                onPress={handleVoiceSubmit}
-                disabled={!voiceInput.trim()}
-              >
-                <Text style={[styles.voiceSubmitButtonText, !voiceInput.trim() && styles.voiceSubmitButtonTextDisabled]}>
-                  Search
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* Voice Search Modal - Removed */}
     </View>
   );
 }
@@ -1005,136 +1060,13 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginLeft: 8,
   },
-  voiceActive: {
-    backgroundColor: '#ffebee',
-    borderWidth: 1,
-    borderColor: '#ff4444',
-  },
-  voiceModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  voiceModalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
-    width: '85%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  voiceModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  voiceModalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  voiceInputContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  voiceIcon: {
-    marginBottom: 12,
-  },
-  voiceModalSubtitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  voiceModalDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 16,
-    textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: 10,
-  },
-  voiceInput: {
-    width: '100%',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: '#333',
-    minHeight: 80,
-  },
-  voiceModalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  voiceCancelButton: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    paddingVertical: 12,
+  backButton: {
+    padding: 6,
+    borderRadius: 20,
     marginRight: 8,
-    alignItems: 'center',
   },
-  voiceCancelButtonText: {
-    color: '#666',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  voiceSubmitButton: {
-    flex: 1,
-    backgroundColor: '#2874f0',
-    borderRadius: 8,
-    paddingVertical: 12,
-    marginLeft: 8,
-    alignItems: 'center',
-  },
-  voiceSubmitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  voiceSubmitButtonDisabled: {
-    backgroundColor: '#ccc',
-  },
-  voiceSubmitButtonTextDisabled: {
-    color: '#999',
-  },
-  voiceIconContainer: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  searchBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f3ede6',
-    borderRadius: 16,
-    marginHorizontal: 16,
-    marginBottom: 10,
-    shadowColor: '#b6b1a9',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
-  },
-  searchBar: {
-    flex: 1,
-    backgroundColor: 'transparent',
-    borderRadius: 16,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: '#3d3a36',
-    fontFamily: 'serif',
-    paddingLeft: 0,
-    paddingRight: 0,
-  },
+
+
   headerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1406,9 +1338,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 18,
     marginTop: 0,
-    marginRight: 0,
+    marginRight: 8,
     marginLeft: 0,
-    transition: 'background-color 0.2s',
+    overflow: 'hidden',
   },
   productCardActive: {
     backgroundColor: '#e0d6c6',
@@ -1435,13 +1367,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   productName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '500',
     color: '#3d3a36',
     textAlign: 'center',
     fontFamily: 'serif',
     letterSpacing: 0.1,
     marginBottom: 2,
+    paddingHorizontal: 4,
   },
   productPrice: {
     fontSize: 15,
@@ -1474,6 +1407,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     paddingVertical: 10,
     paddingHorizontal: 8,
+    overflow: 'hidden',
   },
   featuredProductImage: {
     width: CARD_SIZE * 0.5,
@@ -1483,13 +1417,14 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   featuredProductName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
     color: '#3d3a36',
     textAlign: 'center',
     fontFamily: 'serif',
     letterSpacing: 0.1,
     marginBottom: 1,
+    paddingHorizontal: 4,
   },
   featuredProductPrice: {
     fontSize: 14,
@@ -1605,6 +1540,23 @@ const styles = StyleSheet.create({
     color: '#888',
     fontSize: 13,
     marginRight: 6,
+    fontWeight: '500',
+  },
+  searchSuggestionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginVertical: 4,
+    marginHorizontal: 4,
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  searchSuggestionText: {
+    fontSize: 14,
+    color: '#333',
     fontWeight: '500',
   },
 }); 

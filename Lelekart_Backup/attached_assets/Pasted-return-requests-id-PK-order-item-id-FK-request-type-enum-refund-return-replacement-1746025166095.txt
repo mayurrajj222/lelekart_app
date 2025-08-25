@@ -1,0 +1,244 @@
+return_requests
+
+id (PK)
+order_item_id (FK)
+request_type (enum: 'refund', 'return', 'replacement')
+reason_code (FK to return_reasons)
+description (text)
+status (enum: 'pending', 'approved', 'rejected', 'processing', 'completed', 'cancelled')
+created_at, updated_at
+media_urls (JSON array for proof images)
+seller_response (text)
+admin_notes (text)
+refund_amount (decimal)
+refund_method (enum: 'original', 'wallet')
+return_tracking (JSON for shipping details)
+return_reasons
+
+id (PK)
+code (unique identifier)
+description
+active (boolean)
+type (which request types this reason applies to)
+return_policies
+
+id (PK)
+seller_id (FK)
+category_id (optional FK)
+return_window_days
+replacement_window_days
+refund_window_days
+policy_text
+is_active
+User Flows
+1. Buyer Flow
+Step 1: Request Initiation
+
+Buyer navigates to order details page
+For eligible items (within return window), they see "Request Return/Refund/Replacement" button
+Buyer selects request type, reason, and provides details
+Buyer may upload photos as evidence (damaged product, wrong item, etc.)
+System validates eligibility based on:
+Order completion date vs return policy window
+Product eligibility (some items may be non-returnable)
+Previous return history
+Step 2: Request Tracking
+
+Dedicated "My Returns" section shows all requests with:
+Request ID and creation date
+Current status with timeline
+Expected resolution date
+Action items (if any)
+Step 3: Return Processing (for returns/replacements)
+
+Once request is approved, buyer receives:
+Return shipping instructions
+Printable return label
+Packing guidelines
+Buyer packages item and ships it back
+System updates status when return is scanned by courier
+Step 4: Resolution
+
+For refunds:
+Notification of approved refund
+Credit to original payment method or wallet
+Ability to track refund status
+For replacements:
+Tracking information for replacement item
+Delivery confirmation
+Option to report issues with replacement
+2. Seller Flow
+Step 1: Policy Configuration
+
+Sellers set up return policies:
+General policy or category-specific
+Return window duration
+Eligible return reasons
+Return shipping responsibility
+Auto-approval thresholds
+Step 2: Request Management
+
+Dedicated dashboard showing:
+New requests needing attention
+Requests by status
+Overdue requests
+Return metrics
+For each request, sellers can:
+View full order and customer details
+See uploaded evidence/photos
+Communicate with buyer through system
+Approve or reject with reason
+Offer partial refunds or alternatives
+Step 3: Return Handling
+
+Notification when returned item is in transit
+Receipt confirmation when item arrives
+Quality verification workflow:
+Condition assessment
+Inventory re-integration for resellable items
+Damage documentation if applicable
+Step 4: Financial Processing
+
+Issue refunds directly or approve for admin processing
+Track financial impact of returns
+Reconcile returns against sales
+Manage replacement inventory
+3. Admin Flow
+Step 1: Platform Policy Management
+
+Configure platform-wide default policies
+Set mandatory minimums for seller policies
+Maintain return reason catalog
+Configure automated rules and thresholds
+Step 2: Monitoring Dashboard
+
+Overview of all return activities:
+Return rate by seller, category, product
+Resolution time metrics
+Customer satisfaction indicators
+Financial impact reports
+Alert system for unusual patterns (potential fraud)
+Step 3: Dispute Resolution
+
+Handle escalated cases when:
+Seller doesn't respond within SLA
+Buyer contests seller decision
+Complex scenarios requiring investigation
+Full access to communication history, evidence
+Ability to override seller decisions
+Direct communication with both parties
+Step 4: System Administration
+
+Manage refund processing
+Handle edge cases (expired return windows, etc.)
+Audit return transactions
+Generate compliance reports
+Technical Implementation
+API Endpoints
+Buyer APIs:
+
+POST /api/returns - Create new return request
+GET /api/returns - List user's return requests
+GET /api/returns/:id - Get specific return details
+POST /api/returns/:id/cancel - Cancel a pending request
+GET /api/returns/:id/label - Get return shipping label
+POST /api/returns/:id/message - Send message about return
+GET /api/orders/:id/return-eligibility - Check if order can be returned
+Seller APIs:
+
+GET /api/seller/returns - List seller's return requests
+GET /api/seller/returns/:id - Get return details
+PUT /api/seller/returns/:id/status - Update return status
+POST /api/seller/returns/:id/message - Respond to customer
+POST /api/seller/policies - Create return policy
+GET /api/seller/returns/analytics - Get return metrics
+Admin APIs:
+
+GET /api/admin/returns - List all returns (with filters)
+PUT /api/admin/returns/:id - Update return request
+POST /api/admin/returns/:id/override - Admin override decision
+GET /api/admin/return-analytics - Analytics across platform
+PUT /api/admin/return-reasons - Manage return reasons
+Frontend Components
+Buyer Interface:
+
+Return request form with:
+Reason selection dropdown
+Description field
+Image uploader
+Order/item selector
+Return status tracker with timeline
+Return shipping instructions
+Return history list with filters
+Seller Interface:
+
+Return request dashboard:
+Filterable list of requests
+Status-based tabs
+Bulk actions for similar requests
+Return policy configuration form
+Return inspection workflow
+Return analytics dashboard
+Return label generator
+Admin Interface:
+
+Return management console:
+Advanced filters
+Batch processing tools
+Policy override controls
+Platform-wide return analytics
+Return reason management
+Alert configuration for unusual patterns
+Workflow Automation
+Eligibility Check
+
+Automatic verification of return window
+Product-specific policy application
+Previous return history evaluation
+Auto-approvals
+
+Rules-based approvals for low-risk scenarios
+Immediate shipping label generation
+Automatic status updates
+Notification System
+
+Status change alerts
+Approaching deadline reminders
+Return receipt confirmations
+Refund processing updates
+Financial Processing
+
+Automatic wallet credit for approved refunds
+Payment gateway integration for original payment refunds
+Accounting system integration
+Shipping Integration
+
+Return label generation
+Tracking status updates
+Delivery confirmations
+Implementation Phases
+Phase 1: Basic Return Management
+
+Core database schema
+Simple return request workflow
+Manual approval process
+Basic email notifications
+Phase 2: Enhanced Buyer Experience
+
+In-app return status tracking
+Return shipping label integration
+Improved reason selection and evidence collection
+Streamlined communication
+Phase 3: Seller Tools
+
+Return policy management
+Return analytics
+Batch processing
+Return inspection workflow
+Phase 4: Advanced Features
+
+Automated approvals
+Return fraud detection
+Advanced analytics
+Integration with inventory management
+Financial reconciliation

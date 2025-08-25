@@ -2,6 +2,7 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE } from '../lib/api';
+import { AuthContext } from './AuthContext';
 
 const CartContext = createContext();
 
@@ -9,40 +10,11 @@ export function CartProvider({ children }) {
   const [cartItems, setCartItems] = useState([]);
   const [guestCart, setGuestCart] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState(null);
   const [isUserLoading, setIsUserLoading] = useState(true);
   const GUEST_CART_KEY = 'lelekart_guest_cart';
-
-  // Check if user is authenticated
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        setIsUserLoading(true);
-        const res = await fetch(`${API_BASE}/api/user`, {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache',
-          },
-        });
-        
-        if (res.ok) {
-          const userData = await res.json();
-          setUser(userData);
-        } else {
-          setUser(null);
-        }
-      } catch (err) {
-        console.error('Error checking auth:', err);
-        setUser(null);
-      } finally {
-        setIsUserLoading(false);
-      }
-    };
-    
-    checkAuth();
-  }, []);
+  
+  // Get user from AuthContext instead of managing it separately
+  const { user } = useContext(AuthContext);
 
   // Load guest cart from AsyncStorage on mount
   useEffect(() => {
@@ -79,6 +51,7 @@ export function CartProvider({ children }) {
   const fetchCart = async () => {
     try {
       setLoading(true);
+      console.log('Fetching cart for user:', user ? user.id : 'guest');
       
       if (user) {
         // Fetch from server for authenticated users
@@ -93,12 +66,15 @@ export function CartProvider({ children }) {
         
         if (res.ok) {
           const serverCart = await res.json();
+          console.log('Server cart fetched:', serverCart.length, 'items');
           setCartItems(serverCart);
         } else {
+          console.log('Server cart fetch failed:', res.status);
           setCartItems([]);
         }
       } else {
         // Use guest cart for unauthenticated users
+        console.log('Using guest cart:', guestCart.length, 'items');
         setCartItems(guestCart);
       }
     } catch (err) {
@@ -109,7 +85,10 @@ export function CartProvider({ children }) {
     }
   };
 
+  // Fetch cart when user state changes
   useEffect(() => {
+    console.log('User state changed:', user ? user.id : 'guest');
+    setIsUserLoading(false);
     fetchCart();
   }, [user, guestCart]);
 
@@ -118,22 +97,33 @@ export function CartProvider({ children }) {
     const mergeGuestCart = async () => {
       if (!user || guestCart.length === 0) return;
       
+      console.log('Merging guest cart with server cart...');
+      
       try {
         // Add each guest cart item to server cart
         for (const item of guestCart) {
           try {
-            await fetch(`${API_BASE}/api/cart`, {
+            const numericProductId = Number(item.product.id);
+            const numericVariantId =
+              item.variant && typeof item.variant.id === 'number' && isFinite(item.variant.id)
+                ? item.variant.id
+                : undefined;
+            const res = await fetch(`${API_BASE}/api/cart`, {
               method: 'POST',
               credentials: 'include',
               headers: {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                productId: item.product.id,
+                productId: numericProductId,
                 quantity: item.quantity,
-                variantId: item.variant?.id,
+                ...(numericVariantId !== undefined ? { variantId: numericVariantId } : {}),
               }),
             });
+            
+            if (!res.ok) {
+              console.error('Failed to merge cart item:', res.status);
+            }
           } catch (error) {
             console.error('Error merging cart item:', error);
           }
@@ -145,6 +135,7 @@ export function CartProvider({ children }) {
         
         // Refresh cart data
         await fetchCart();
+        console.log('Guest cart merged successfully');
       } catch (error) {
         console.error('Error during cart merge:', error);
       }
@@ -156,11 +147,47 @@ export function CartProvider({ children }) {
   // Add to cart with proper variant handling and server sync
   const addToCart = async (product, quantity = 1, variant = null, showAlert = true) => {
     try {
+      // Determine the effective variant to use for products with variants
+      let effectiveVariant = variant || product?.selectedVariant || null;
+      if (!effectiveVariant) {
+        const variantsArray = Array.isArray(product?.variants) ? product.variants : [];
+        if (variantsArray.length > 0) {
+          effectiveVariant = variantsArray.find(v => (Number(v?.stock) || 0) > 0) || variantsArray[0] || null;
+        } else if (product?.id != null) {
+          // Always attempt to fetch variants once when none provided (covers Grocery and other categories)
+          try {
+            const numericProductIdForFetch = Number(product.id);
+            if (Number.isFinite(numericProductIdForFetch)) {
+              const res = await fetch(`${API_BASE}/api/products/${numericProductIdForFetch}/variants`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+              });
+              if (res.ok) {
+                const fetched = await res.json();
+                const fetchedVariants = Array.isArray(fetched) ? fetched : (fetched.variants || []);
+                if (fetchedVariants.length > 0) {
+                  effectiveVariant = fetchedVariants.find(v => (Number(v?.stock) || 0) > 0) || fetchedVariants[0] || null;
+                }
+              }
+            }
+          } catch (e) {
+            // ignore; proceed without variant
+          }
+        }
+      }
+
+      console.log('Adding to cart:', {
+        productId: product?.id,
+        quantity,
+        variantId: effectiveVariant?.id ?? variant?.id
+      });
+      
       // Handle negative quantities (decrease quantity)
       if (quantity < 0) {
         const existingItem = cartItems.find(item => {
           const sameProduct = item.productId === product.id;
-          const sameVariant = JSON.stringify(item.variant) === JSON.stringify(variant || product.selectedVariant);
+          const sameVariant = JSON.stringify(item.variant) === JSON.stringify(effectiveVariant);
           return sameProduct && sameVariant;
         });
 
@@ -177,6 +204,20 @@ export function CartProvider({ children }) {
 
       if (user) {
         // Add to server cart for authenticated users
+        const numericProductId = Number(product.id);
+        if (!Number.isFinite(numericProductId)) {
+          throw new Error('Invalid product ID');
+        }
+        // Convert variant id to number when available (handles string ids like ""12"")
+        const parsedVariantId = effectiveVariant?.id !== undefined ? Number(effectiveVariant.id) : undefined;
+        const numericVariantId = Number.isFinite(parsedVariantId) ? parsedVariantId : undefined;
+        // If the product has variants but we still don't have a valid variant id, ask user to select
+        if ((Array.isArray(product?.variants) && product.variants.length > 0) && numericVariantId === undefined) {
+          if (showAlert) {
+            Alert.alert('Selection Required', 'Please select a product option before adding to cart.');
+          }
+          return;
+        }
         const res = await fetch(`${API_BASE}/api/cart`, {
           method: 'POST',
           credentials: 'include',
@@ -184,9 +225,9 @@ export function CartProvider({ children }) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            productId: product.id,
+            productId: numericProductId,
             quantity: quantity,
-            variantId: variant?.id,
+            ...(numericVariantId !== undefined ? { variantId: numericVariantId } : {}),
           }),
         });
 
@@ -195,7 +236,18 @@ export function CartProvider({ children }) {
             Alert.alert('Login Required', 'Please login to add items to your cart');
             return;
           }
-          throw new Error('Failed to add to cart');
+          let serverMessage = 'Failed to add to cart';
+          try {
+            const contentType = res.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+              const data = await res.json();
+              serverMessage = data?.message || data?.error || serverMessage;
+            } else {
+              serverMessage = await res.text();
+            }
+          } catch {}
+          console.error('Add to cart server error:', res.status, serverMessage);
+          throw new Error(serverMessage || 'Failed to add to cart');
         }
 
         // Refresh cart from server
@@ -209,15 +261,15 @@ export function CartProvider({ children }) {
           product: {
             id: product.id,
             name: product.name || 'Product',
-            price: variant ? variant.price : product.price,
+            price: (effectiveVariant && effectiveVariant.price != null) ? effectiveVariant.price : product.price,
             imageUrl: product.imageUrl || product.image || 'https://placehold.co/200x200?text=Product',
-            selectedVariant: product.selectedVariant,
+            selectedVariant: effectiveVariant || product.selectedVariant,
             selectedColor: product.selectedColor,
             selectedSize: product.selectedSize,
             color: product.color,
             size: product.size
           },
-          variant: variant || product.selectedVariant
+          variant: effectiveVariant
         };
         
         setGuestCart(prev => {
@@ -249,7 +301,7 @@ export function CartProvider({ children }) {
     } catch (err) {
       console.error('Error adding to cart:', err);
       if (showAlert) {
-        Alert.alert('Error', 'Failed to add item to cart');
+        Alert.alert('Error', err?.message ? String(err.message) : 'Failed to add item to cart');
       }
     }
   };
@@ -257,6 +309,8 @@ export function CartProvider({ children }) {
   // Remove from cart with server sync
   const removeFromCart = async (itemId, showAlert = true) => {
     try {
+      console.log('Removing from cart:', itemId);
+      
       if (user) {
         // Remove from server cart
         const res = await fetch(`${API_BASE}/api/cart/${itemId}`, {
@@ -296,9 +350,15 @@ export function CartProvider({ children }) {
 
   // Update quantity with server sync
   const updateQuantity = async (itemId, quantity) => {
-    if (quantity < 1) return;
+    // If quantity is 0 or less, remove the item from cart
+    if (quantity <= 0) {
+      await removeFromCart(itemId, false);
+      return;
+    }
     
     try {
+      console.log('Updating quantity:', itemId, quantity);
+      
       if (user) {
         // Update server cart
         const res = await fetch(`${API_BASE}/api/cart/${itemId}`, {
@@ -340,6 +400,8 @@ export function CartProvider({ children }) {
   // Clear cart with server sync
   const clearCart = async () => {
     try {
+      console.log('Clearing cart');
+      
       if (user) {
         // Clear server cart
         const res = await fetch(`${API_BASE}/api/cart/clear`, {
@@ -633,6 +695,11 @@ export function CartProvider({ children }) {
     }
 
     try {
+      const numericProductId = Number(product.id);
+      const numericVariantId =
+        variant && typeof variant.id === 'number' && isFinite(variant.id)
+          ? variant.id
+          : undefined;
       // Use direct fetch API for more explicit control over the buy now process
       const response = await fetch(`${API_BASE}/api/cart`, {
         method: 'POST',
@@ -642,9 +709,9 @@ export function CartProvider({ children }) {
           'Cache-Control': 'no-cache',
         },
         body: JSON.stringify({
-          productId: product.id,
+          productId: numericProductId,
           quantity: requestedQuantity,
-          variantId: variant?.id,
+          ...(numericVariantId !== undefined ? { variantId: numericVariantId } : {}),
           buyNow: true, // Signal to the server this is a buy now request
         }),
       });

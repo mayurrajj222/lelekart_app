@@ -1,0 +1,32 @@
+Failed to load resource: the server responded with a status of 502 (Bad Gateway)Understand this error
+db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/:1 
+            
+            
+           Failed to load resource: the server responded with a status of 502 (Bad Gateway)Understand this error
+ WebSocket connection to 'wss://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/?token=m8y91QGGIlon' failed: 
+t @ eruda.js:2Understand this error
+ WebSocket connection to 'wss://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/?token=DbA55wfGSHMK' failed: 
+t @ eruda.js:2Understand this error
+_app-e1757f97926d111b.js:38 Invalid href 'https://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev//product/4612' passed to next/router in page: '/replEnvironmentDesktop'. Repeated forward-slashes (//) or backslashes \ are not valid in the href.
+(anonymous) @ _app-e1757f97926d111b.js:38Understand this error
+ WebSocket connection to 'wss://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/?token=DbA55wfGSHMK' failed: 
+t @ eruda.js:2Understand this error
+ WebSocket connection to 'wss://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/?token=DbA55wfGSHMK' failed: 
+t @ eruda.js:2Understand this error
+ WebSocket connection to 'wss://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/ws?userId=6' failed: 
+t @ eruda.js:2Understand this error
+Network.js:227 WebSocket connection to 'wss://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/?token=lmVqQiZk5p-k' failed: 
+t @ Network.js:227Understand this error
+Network.js:227 Uncaught (in promise) SyntaxError: Failed to construct 'WebSocket': The URL 'wss://localhost:undefined/?token=lmVqQiZk5p-k' is invalid.
+    at new t (Network.js:227:18)
+    at setupWebSocket (client:536:19)
+    at fallback (client:509:16)
+    at WebSocket.<anonymous> (client:555:7)Understand this error
+Console.js:61 Connecting to WebSocket at: wss://db306eaa-7d41-420f-bbc4-e86999ed2a3d-00-2x2ne49ead0zp.janeway.replit.dev/ws?userId=6
+Console.js:61 WebSocket connected successfully
+2
+                
+          
+          
+          
+         Chrome is moving towards a new experience that allows users to choose to browse without third-party cookies.Understand this warning

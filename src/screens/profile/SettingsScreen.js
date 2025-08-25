@@ -78,6 +78,7 @@ export default function SettingsScreen() {
 
   // Add state for phone and pincode errors
   const [phoneError, setPhoneError] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [pincodeError, setPincodeError] = useState('');
 
   // Sync profilePhoto with user context
@@ -162,8 +163,22 @@ export default function SettingsScreen() {
   };
 
   const handleProfileUpdate = async () => {
-    if (profileForm.phone.length !== 10) {
-      setPhoneError('Please enter 10 digit valid phone number');
+    // Basic email required + format validation
+    const email = (profileForm.email || '').trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email) {
+      setEmailError('Email is required');
+      return;
+    } else if (!emailRegex.test(email)) {
+      setEmailError('Please enter a valid email address');
+      return;
+    } else {
+      setEmailError('');
+    }
+    // Indian mobile format: must start with 6-9 and be 10 digits
+    const phoneRegex = /^[6-9][0-9]{9}$/;
+    if (!phoneRegex.test(profileForm.phone)) {
+      setPhoneError('Phone must start with 6, 7, 8, or 9 and be 10 digits');
       return;
     } else {
       setPhoneError('');
@@ -682,10 +697,24 @@ export default function SettingsScreen() {
                 <TextInput
                   style={styles.input}
                   value={profileForm.email}
-                  onChangeText={(text) => setProfileForm({...profileForm, email: text})}
+                  onChangeText={(text) => {
+                    const next = text.trimStart();
+                    setProfileForm({...profileForm, email: next});
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    if (!next) {
+                      setEmailError('Email is required');
+                    } else if (!emailRegex.test(next)) {
+                      setEmailError('Please enter a valid email address');
+                    } else {
+                      setEmailError('');
+                    }
+                  }}
                   placeholder="Enter email"
                   keyboardType="email-address"
                 />
+                {emailError ? (
+                  <Text style={{ color: 'red', fontSize: 13, marginBottom: 4 }}>{emailError}</Text>
+                ) : null}
               </View>
 
               <View style={styles.inputGroup}>
@@ -697,9 +726,15 @@ export default function SettingsScreen() {
                     // Only allow digits, max 10
                     const digits = text.replace(/[^0-9]/g, '').slice(0, 10);
                     setProfileForm(f => ({ ...f, phone: digits }));
-                    if (digits.length === 10) {
+                    if (digits.length === 0) {
                       setPhoneError('');
-                    } else if (digits.length > 0 && digits.length < 10) {
+                      return;
+                    }
+                    if (!/^[6-9]/.test(digits)) {
+                      setPhoneError('Phone must start with 6, 7, 8, or 9');
+                      return;
+                    }
+                    if (digits.length < 10) {
                       setPhoneError('Please enter 10 digit valid phone number');
                     } else {
                       setPhoneError('');

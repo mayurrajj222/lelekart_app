@@ -1,6 +1,5 @@
 import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
-import * as returnHandler from "./handlers/return-handlers";
 import * as rewardsHandler from "./handlers/rewards-handlers";
 import {
   createRazorpayOrder,
@@ -27,16 +26,18 @@ export function registerUserProfileRoute(app: Express) {
   // Products endpoint for React Native app
   app.get("/api/products", async (req: Request, res: Response) => {
     try {
-      // For now, return mock data since we don't have a full database setup
-      // In production, this would fetch from your actual database
+      // Return a larger dataset of products (100-200) for similar products functionality
       const mockProducts = [
+        // Electronics Category
         {
           id: 1,
           name: "Smartphone",
           price: 15999,
-          imageUrl: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=400&fit=crop",
+          imageUrl: "https://images.unsplash.com/photo-1511707171634-5f400&h=400&fit=crop",
           category: "Electronics",
-          description: "Latest smartphone with amazing features"
+          description: "Latest smartphone with amazing features",
+          rating: 4.5,
+          ratingCount: 128
         },
         {
           id: 2,
@@ -44,7 +45,9 @@ export function registerUserProfileRoute(app: Express) {
           price: 45999,
           imageUrl: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&h=400&fit=crop",
           category: "Electronics",
-          description: "High-performance laptop for work and gaming"
+          description: "High-performance laptop for work and gaming",
+          rating: 4.7,
+          ratingCount: 89
         },
         {
           id: 3,
@@ -52,7 +55,9 @@ export function registerUserProfileRoute(app: Express) {
           price: 2999,
           imageUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop",
           category: "Electronics",
-          description: "Premium wireless headphones with noise cancellation"
+          description: "Premium wireless headphones with noise cancellation",
+          rating: 4.3,
+          ratingCount: 156
         },
         {
           id: 4,
@@ -60,7 +65,9 @@ export function registerUserProfileRoute(app: Express) {
           price: 8999,
           imageUrl: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop",
           category: "Electronics",
-          description: "Feature-rich smartwatch for fitness tracking"
+          description: "Feature-rich smartwatch for fitness tracking",
+          rating: 4.6,
+          ratingCount: 203
         },
         {
           id: 5,
@@ -68,7 +75,9 @@ export function registerUserProfileRoute(app: Express) {
           price: 35999,
           imageUrl: "https://images.unsplash.com/photo-1486401899868-0e435ed85128?w=400&h=400&fit=crop",
           category: "Electronics",
-          description: "Next-gen gaming console for immersive gaming"
+          description: "Next-gen gaming console for immersive gaming",
+          rating: 4.8,
+          ratingCount: 67
         },
         {
           id: 6,
@@ -76,9 +85,182 @@ export function registerUserProfileRoute(app: Express) {
           price: 25999,
           imageUrl: "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=400&h=400&fit=crop",
           category: "Electronics",
-          description: "Versatile tablet for work and entertainment"
+          description: "Versatile tablet for work and entertainment",
+          rating: 4.4,
+          ratingCount: 92
+        },
+        // Honey Category - for similar products
+        {
+          id: 101,
+          name: "Organic Honey - Premium Grade",
+          price: 180,
+          imageUrl: "https://placehold.co/200x200?text=Honey+Premium",
+          category: "honey",
+          description: "Pure organic honey sourced from pristine forests",
+          rating: 4.5,
+          ratingCount: 89
+        },
+        {
+          id: 102,
+          name: "Wild Forest Honey",
+          price: 220,
+          imageUrl: "https://placehold.co/200x200?text=Forest+Honey",
+          category: "honey",
+          description: "Natural wild forest honey with rich flavor",
+          rating: 4.7,
+          ratingCount: 156
+        },
+        {
+          id: 103,
+          name: "Manuka Honey - Special Blend",
+          price: 350,
+          imageUrl: "https://placehold.co/200x200?text=Manuka+Honey",
+          category: "honey",
+          description: "Premium Manuka honey with medicinal properties",
+          rating: 4.8,
+          ratingCount: 203
+        },
+        {
+          id: 104,
+          name: "Acacia Honey - Light & Sweet",
+          price: 165,
+          imageUrl: "https://placehold.co/200x200?text=Acacia+Honey",
+          category: "honey",
+          description: "Light and sweet acacia honey",
+          rating: 4.3,
+          ratingCount: 67
+        },
+        {
+          id: 105,
+          name: "Multi-Flower Honey",
+          price: 140,
+          imageUrl: "https://placehold.co/200x200?text=Multi+Flower",
+          category: "honey",
+          description: "Blend of multiple flower varieties",
+          rating: 4.2,
+          ratingCount: 45
+        },
+        {
+          id: 106,
+          name: "Buckwheat Honey - Dark & Rich",
+          price: 195,
+          imageUrl: "https://placehold.co/200x200?text=Buckwheat+Honey",
+          category: "honey",
+          description: "Dark and rich buckwheat honey",
+          rating: 4.6,
+          ratingCount: 78
+        },
+        {
+          id: 107,
+          name: "Eucalyptus Honey - Minty Fresh",
+          price: 185,
+          imageUrl: "https://placehold.co/200x200?text=Eucalyptus+Honey",
+          category: "honey",
+          description: "Refreshing eucalyptus honey",
+          rating: 4.4,
+          ratingCount: 92
+        },
+        {
+          id: 108,
+          name: "Orange Blossom Honey - Citrus Sweet",
+          price: 175,
+          imageUrl: "https://placehold.co/200x200?text=Orange+Blossom",
+          category: "honey",
+          description: "Citrus-scented orange blossom honey",
+          rating: 4.5,
+          ratingCount: 113
+        },
+        // Clothing Category
+        {
+          id: 201,
+          name: "Men's T-Shirt",
+          price: 599,
+          imageUrl: "https://placehold.co/200x200?text=Men+T-Shirt",
+          category: "clothing",
+          description: "Comfortable cotton t-shirt for men",
+          rating: 4.2,
+          ratingCount: 45
+        },
+        {
+          id: 202,
+          name: "Women's Dress",
+          price: 1299,
+          imageUrl: "https://placehold.co/200x200?text=Women+Dress",
+          category: "clothing",
+          description: "Elegant dress for women",
+          rating: 4.4,
+          ratingCount: 78
+        },
+        {
+          id: 203,
+          name: "Kids Jeans",
+          price: 799,
+          imageUrl: "https://placehold.co/200x200?text=Kids+Jeans",
+          category: "clothing",
+          description: "Durable jeans for kids",
+          rating: 4.1,
+          ratingCount: 34
+        },
+        // Home & Garden Category
+        {
+          id: 301,
+          name: "Garden Plant Pot",
+          price: 299,
+          imageUrl: "https://placehold.co/200x200?text=Plant+Pot",
+          category: "home_garden",
+          description: "Beautiful ceramic plant pot",
+          rating: 4.3,
+          ratingCount: 56
+        },
+        {
+          id: 302,
+          name: "LED Table Lamp",
+          price: 899,
+          imageUrl: "https://placehold.co/200x200?text=Table+Lamp",
+          category: "home_garden",
+          description: "Modern LED table lamp",
+          rating: 4.6,
+          ratingCount: 89
+        },
+        // Books Category
+        {
+          id: 401,
+          name: "Programming Book",
+          price: 599,
+          imageUrl: "https://placehold.co/200x200?text=Programming+Book",
+          category: "books",
+          description: "Learn programming from scratch",
+          rating: 4.7,
+          ratingCount: 123
+        },
+        {
+          id: 402,
+          name: "Fiction Novel",
+          price: 399,
+          imageUrl: "https://placehold.co/200x200?text=Fiction+Novel",
+          category: "books",
+          description: "Bestselling fiction novel",
+          rating: 4.5,
+          ratingCount: 67
         }
       ];
+
+      // Add more products to reach 100-200 range
+      for (let i = 500; i <= 600; i++) {
+        const categories = ["Electronics", "honey", "clothing", "home_garden", "books", "sports", "beauty", "automotive"];
+        const category = categories[i % categories.length];
+        
+        mockProducts.push({
+          id: i,
+          name: `Product ${i}`,
+          price: Math.floor(Math.random() * 5000) + 100,
+          imageUrl: `https://placehold.co/200x200?text=Product+${i}`,
+          category: category,
+          description: `Description for product ${i}`,
+          rating: (Math.random() * 2 + 3).toFixed(1), // Random rating between 3.0 and 5.0
+          ratingCount: Math.floor(Math.random() * 200) + 10
+        });
+      }
 
       res.json({
         products: mockProducts,
@@ -86,7 +268,7 @@ export function registerUserProfileRoute(app: Express) {
           total: mockProducts.length,
           totalPages: 1,
           currentPage: 1,
-          limit: 12
+          limit: mockProducts.length
         }
       });
     } catch (error) {
@@ -787,6 +969,156 @@ export function registerUserProfileRoute(app: Express) {
       res.status(500).json({ error: "Failed to clear cart" });
     }
   });
+
+  // Product reviews endpoint
+  app.get("/api/products/:id/reviews", async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      
+      // Get the product to check if it's approved
+      const product = await storage.getProduct(productId);
+      if (!product) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+
+      // Check if product is approved (buyers can only see reviews for approved products)
+      if (product.status !== "approved" && req.isAuthenticated() && req.user.role === "buyer") {
+        console.log(
+          `Unauthorized access attempt by buyer to reviews of unapproved product ${productId}`
+        );
+        return res.status(403).json({ error: "Product not available for review" });
+      }
+
+      const reviews = await storage.getProductReviews(productId);
+      res.json(reviews);
+    } catch (error) {
+      console.error("Error fetching product reviews:", error);
+      res.status(500).json({ error: "Failed to fetch product reviews" });
+    }
+  });
+
+  // Submit product review endpoint
+  app.post("/api/products/:id/reviews", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    
+    try {
+      const productId = parseInt(req.params.id);
+      const { rating, comment } = req.body;
+      const userId = req.user.id;
+
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+
+      if (!rating || rating < 1 || rating > 5) {
+        return res.status(400).json({ error: "Rating must be between 1 and 5" });
+      }
+
+      if (!comment || comment.trim().length < 10) {
+        return res.status(400).json({ error: "Review comment must be at least 10 characters long" });
+      }
+
+      // Save the review to the database
+      const newReview = await storage.createReview({
+        userId: userId,
+        productId: productId,
+        rating: rating,
+        comment: comment.trim()
+      });
+
+      console.log('New review saved:', newReview);
+      
+      res.status(201).json({ 
+        success: true, 
+        message: "Review submitted successfully",
+        review: newReview
+      });
+    } catch (error) {
+      console.error("Error submitting review:", error);
+      res.status(500).json({ error: "Failed to submit review" });
+    }
+  });
+
+  // Product variant update endpoint
+  app.put("/api/products/:productId/variants/:variantId", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    
+    try {
+      const productId = parseInt(req.params.productId);
+      const variantId = parseInt(req.params.variantId);
+      const { price, mrp, stock, color, size, images } = req.body;
+
+      if (isNaN(productId) || isNaN(variantId)) {
+        return res.status(400).json({ error: "Invalid product or variant ID" });
+      }
+
+      // Get the product to verify ownership
+      const product = await storage.getProduct(productId);
+      if (!product) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+
+      // Check if user owns the product (for sellers) or is admin
+      if (product.sellerId !== req.user.id && req.user.role !== "admin") {
+        return res.status(403).json({ error: "Unauthorized to update this product" });
+      }
+
+      // Get the current variant
+      const currentVariant = await storage.getProductVariant(variantId);
+      if (!currentVariant) {
+        return res.status(404).json({ error: "Variant not found" });
+      }
+
+      // Prepare update data
+      const updateData: any = {};
+
+      if (price !== undefined) {
+        updateData.price = Number(price);
+        console.log(`Updating price to ${updateData.price}`);
+      }
+
+      if (mrp !== undefined) {
+        updateData.mrp = Number(mrp);
+        console.log(`Updating mrp to ${updateData.mrp}`);
+      }
+
+      if (stock !== undefined) {
+        updateData.stock = Number(stock);
+        console.log(`Updating stock to ${updateData.stock}`);
+      }
+
+      if (color !== undefined) {
+        updateData.color = color;
+        console.log(`Updating color to ${updateData.color}`);
+      }
+
+      if (size !== undefined) {
+        updateData.size = size;
+        console.log(`Updating size to ${updateData.size}`);
+      }
+
+      if (images !== undefined && Array.isArray(images)) {
+        updateData.images = images;
+        console.log(`Updating images array with ${images.length} images`);
+      }
+
+      // Log the final update data
+      console.log(
+        `Updating variant ${variantId} for product ${productId} with data:`,
+        updateData
+      );
+
+      // Update the variant
+      const updatedVariant = await storage.updateProductVariant(variantId, updateData);
+
+      res.json(updatedVariant);
+    } catch (error) {
+      console.error("Error updating product variant:", error);
+      res.status(500).json({ error: "Failed to update product variant" });
+    }
+  });
+
+
 
   // Fallback for all other GET requests
   app.get("*", (req: Request, res: Response) => {

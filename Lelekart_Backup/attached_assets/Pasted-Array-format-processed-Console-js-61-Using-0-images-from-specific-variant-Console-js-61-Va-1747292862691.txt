@@ -1,0 +1,19 @@
+Array format processed: []
+Console.js:61 🟢 Using 0 images from specific variant
+Console.js:61 🔄 Variant images changed: []
+Console.js:61 🖼️ Setting 0 new variant images: none
+Console.js:61 Extracted URLs from special format: (6) ['https://chunumunu.s3.ap-northeast-1.amazonaws.com/…20Image%202025-04-21%20at%2014.56.36_f8a9214c.jpg', 'https://chunumunu.s3.ap-northeast-1.amazonaws.com/…20Image%202025-04-21%20at%2014.56.37_3a1bce60.jpg', 'https://chunumunu.s3.ap-northeast-1.amazonaws.com/…20Image%202025-04-21%20at%2014.56.37_7294b2d8.jpg', 'https://chunumunu.s3.ap-northeast-1.amazonaws.com/…20Image%202025-04-21%20at%2014.56.38_f8d91d42.jpg', 'https://chunumunu.s3.ap-northeast-1.amazonaws.com/…20Image%202025-04-21%20at%2014.56.39_3f5e60f8.jpg', 'https://chunumunu.s3.ap-northeast-1.amazonaws.com/…20Image%202025-04-21%20at%2014.56.39_e855cf62.jpg']
+Console.js:61 Current productImages: 7 first image: https://chunumunu.s3.ap-northe...
+Console.js:61 Current selectedVariantImages: 0
+Console.js:61 Extracted URLs from special format: (6) ['https://chunumunu.s3.ap-northeast-1.amazonaws.com/…20Image%202025-04-21%20at%2014.56.36_f8a9214c.jpg', 'https://chunumunu.s3.ap-northeast-1.amazonaws.com/…20Image%202025-04-21%20at%2014.56.37_3a1bce60.jpg', 'https://chunumunu.s3.ap-northeast-1.amazonaws.com/…20Image%202025-04-21%20at%2014.56.37_7294b2d8.jpg', 'https://chunumunu.s3.ap-northeast-1.amazonaws.com/…20Image%202025-04-21%20at%2014.56.38_f8d91d42.jpg', 'https://chunumunu.s3.ap-northeast-1.amazonaws.com/…20Image%202025-04-21%20at%2014.56.39_3f5e60f8.jpg', 'https://chunumunu.s3.ap-northeast-1.amazonaws.com/…20Image%202025-04-21%20at%2014.56.39_e855cf62.jpg']
+Console.js:61 Current productImages: 7 first image: https://chunumunu.s3.ap-northe...
+Console.js:61 Current selectedVariantImages: 0
+Console.js:61 Valid selection: false
+Console.js:61 Finding available sizes for color: Default
+Console.js:61 Found 4 variants with color Default and stock
+Console.js:61 Available sizes for Default: (4) ['M', 'L', 'XL', 'XXL']
+Console.js:61 Valid selection: true
+Console.js:61 Selected variant: {id: 11, productId: 3870, sku: 'DRAFT-1745482460492-V3', color: '', size: 'XXL', …}
+Console.js:61 Setting 0 variant images directly: []
+Console.js:61 Processing images for variant: Color=, Size=XXL
+Console.js:61 Raw images data: []

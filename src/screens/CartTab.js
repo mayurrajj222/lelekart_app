@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, SafeAreaView, ActivityIndicator, Modal, FlatList, Alert, TextInput, ImageBackground, Dimensions, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, SafeAreaView, ActivityIndicator, Modal, FlatList, Alert, TextInput, ImageBackground, Dimensions, Animated, RefreshControl } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useCart } from '../context/CartContext';
 import { useNavigation } from '@react-navigation/native';
@@ -33,9 +33,21 @@ const BG_IMAGE = require('./assets/image.png');
 const LELE_IMAGE = require('./assets/lele.png');
 
 export default function CartTab() {
-  const { cartItems, removeFromCart, updateQuantity, clearCart, loading, fetchCart, refreshCart } = useCart();
-  const { user } = React.useContext(AuthContext);
+  const { cartItems, removeFromCart, updateQuantity, clearCart, loading, fetchCart, refreshCart, user, addToCart } = useCart();
+  const { user: authUser } = React.useContext(AuthContext);
   const navigation = useNavigation();
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('=== CartTab Debug Info ===');
+    console.log('Cart items count:', cartItems.length);
+    console.log('Cart items:', cartItems);
+    console.log('Loading state:', loading);
+    console.log('User from cart context:', user);
+    console.log('User from auth context:', authUser);
+    console.log('========================');
+  }, [cartItems, loading, user, authUser]);
+
   const total = cartItems.reduce((sum, item) => {
     const price = item.variant ? item.variant.price : item.product.price;
     return sum + price * item.quantity;
@@ -197,41 +209,63 @@ export default function CartTab() {
             <TouchableOpacity style={styles.shopNowBtn} onPress={() => navigation.navigate('Home')}>
               <Text style={styles.shopNowText}>Shop Now</Text>
             </TouchableOpacity>
+
           </View>
         ) : (
           <View style={{ flex: 1 }}>
-            <ScrollView style={{ flex: 1 }}>
+            <ScrollView 
+              style={{ flex: 1 }}
+              refreshControl={
+                <RefreshControl
+                  refreshing={loading}
+                  onRefresh={() => {
+                    console.log('Swipe to refresh cart triggered');
+                    fetchCart();
+                  }}
+                  colors={['#2874f0']}
+                  tintColor="#2874f0"
+                />
+              }
+            >
               {cartItems.map((item, idx) => (
-                <View key={item.product.id} style={styles.cartRowNormal}>
+                <View key={item.id} style={styles.cartRowNormal}>
                   <TouchableOpacity onPress={() => navigation.navigate('ProductDetail', { product: item.product })}>
-                    <Image source={{ uri: item.product.imageUrl || (item.product.images && item.product.images[0]) || 'https://placehold.co/60x60?text=No+Image' }} style={styles.cartImageNormal} />
+                    <Image 
+                      source={{ 
+                        uri: (item.variant && Array.isArray(item.variant.images) && item.variant.images[0]) 
+                          || item.product.imageUrl 
+                          || (Array.isArray(item.product.images) && item.product.images[0]) 
+                          || 'https://placehold.co/60x60?text=No+Image' 
+                      }} 
+                      style={styles.cartImageNormal} 
+                    />
                   </TouchableOpacity>
                   <View style={styles.cartDetailsNormal}>
                     <TouchableOpacity onPress={() => navigation.navigate('ProductDetail', { product: item.product })}>
                       <Text style={styles.cartNameNormal} numberOfLines={2}>{item.product.name}</Text>
                     </TouchableOpacity>
-                    {/* Display variant information */}
-                    {item.variant && (
-                      <>
-                        {item.variant.selectedColor && <Text style={styles.cartMetaNormal}>Color: {item.variant.selectedColor}</Text>}
-                        {item.variant.selectedSize && <Text style={styles.cartMetaNormal}>Size: {item.variant.selectedSize}</Text>}
-                        {item.variant.selectedVariant && item.variant.selectedVariant.weight && <Text style={styles.cartMetaNormal}>Weight: {item.variant.selectedVariant.weight}</Text>}
-                      </>
-                    )}
-                    {/* Fallback to product variant info if variant object doesn't exist */}
-                    {!item.variant && (
-                      <>
-                        {item.product.color && <Text style={styles.cartMetaNormal}>Color: {item.product.color}</Text>}
-                        {item.product.size && <Text style={styles.cartMetaNormal}>Size: {item.product.size}</Text>}
-                        {item.product.selectedVariant && item.product.selectedVariant.weight && <Text style={styles.cartMetaNormal}>Weight: {item.product.selectedVariant.weight}</Text>}
-                        {item.product.selectedColor && <Text style={styles.cartMetaNormal}>Color: {item.product.selectedColor.name}</Text>}
-                        {item.product.selectedSize && <Text style={styles.cartMetaNormal}>Size: {item.product.selectedSize.name}</Text>}
-                      </>
-                    )}
+                    {(() => {
+                      const color = (item.variant && item.variant.color) || (item.product && item.product.selectedColor && item.product.selectedColor.name) || item.product?.color;
+                      const size = (item.variant && item.variant.size) || (item.product && item.product.selectedSize && item.product.selectedSize.name) || item.product?.size;
+                      return (
+                        <>
+                          {color ? <Text style={styles.cartMetaNormal}>Color: {String(color)}</Text> : null}
+                          {size ? <Text style={styles.cartMetaNormal}>Size: {String(size)}</Text> : null}
+                        </>
+                      );
+                    })()}
                     <Text style={styles.cartPriceNormal}>₹{item.variant ? item.variant.price : item.product.price}</Text>
                     <View style={styles.cartActionRowNormal}>
                       <View style={styles.cartQtyPillNormal}>
-                        <TouchableOpacity onPress={() => updateQuantity(item.id, item.quantity - 1)}>
+                        <TouchableOpacity onPress={() => {
+                          if (item.quantity === 1) {
+                            // Remove item if quantity is 1
+                            removeFromCart(item.id);
+                          } else {
+                            // Decrease quantity if more than 1
+                            updateQuantity(item.id, item.quantity - 1);
+                          }
+                        }}>
                           <Text style={styles.cartQtyBtnNormal}>-</Text>
                         </TouchableOpacity>
                         <Text style={styles.cartQtyTextNormal}>{item.quantity}</Text>
@@ -460,6 +494,16 @@ export default function CartTab() {
                 <>
                   <Text style={{ fontWeight: 'bold', marginBottom: 8 }}>Order ID: {orderSummary.id || orderSummary.orderId}</Text>
                   <Text style={{ marginBottom: 8 }}>Thank you for your purchase.</Text>
+                  {(() => {
+                    const base = orderSummary?.date ? new Date(orderSummary.date) : new Date();
+                    const edd = new Date(base);
+                    edd.setDate(edd.getDate() + 6);
+                    return (
+                      <Text style={{ marginBottom: 8, color: '#ff9800' }}>
+                        Expected delivery by: {edd.toLocaleDateString()}
+                      </Text>
+                    );
+                  })()}
                   <Text style={{ marginBottom: 8 }}>Total: ₹{orderSummary.total || orderSummary.amount || total}</Text>
                   <Text style={{ marginBottom: 8 }}>Shipping to: {orderSummary.shippingAddress ? `${orderSummary.shippingAddress.address}, ${orderSummary.shippingAddress.city}` : selectedAddress ? `${selectedAddress.address}, ${selectedAddress.city}` : ''}</Text>
                   <TouchableOpacity style={[styles.checkoutBtn, { marginTop: 16 }]} onPress={() => setOrderSummary(null)}>
@@ -1636,5 +1680,17 @@ marginRight: 16,
     letterSpacing: 1,
     textAlign: 'center',
     textTransform: 'uppercase',
+  },
+  refreshButton: {
+    position: 'absolute',
+    right: 16,
+    top: 8,
+    padding: 8,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
 }); 

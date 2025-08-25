@@ -1,0 +1,1734 @@
+# LeLeKart E-commerce Platform API Documentation
+
+## Mobile App Integration
+The LeLeKart platform is now compatible with mobile applications. All API endpoints are accessible via the same routes for both web and mobile clients.
+
+### Mobile App Configuration
+```javascript
+// Base URL for API calls from mobile app
+export const API_BASE_URL = 'https://lelekart.your-username.repl.co';
+
+// For development/testing on local network
+export const DEV_API_BASE_URL = 'http://localhost:5000';
+
+// Helper function to get the appropriate URL based on environment
+export const getApiBaseUrl = (isDev = false) => {
+  return isDev ? DEV_API_BASE_URL : API_BASE_URL;
+};
+```
+
+### API Health Check Endpoints
+- `/health` - Simple health check (returns "OK")
+- `/ping` - Simple ping endpoint (returns "pong")
+- `/api/health` - Detailed health check with database connection status
+
+## CORS Support
+All API endpoints now include proper CORS headers to support cross-origin requests from mobile applications:
+```
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
+Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization
+```
+
+## Authentication and User Management
+
+### `/api/register` - Register a new user (POST)
+**Request:**
+```json
+{
+  "username": "newuser",
+  "email": "user@example.com",
+  "password": "securepassword123",
+  "role": "buyer" // Optional, defaults to "buyer"
+}
+```
+**Response (201):**
+```json
+{
+  "id": 42,
+  "username": "newuser",
+  "email": "user@example.com",
+  "role": "buyer",
+  "createdAt": "2025-04-17T03:51:20.000Z"
+}
+```
+
+### `/api/login` - Authenticate user with password (POST)
+**Request:**
+```json
+{
+  "username": "newuser",
+  "password": "securepassword123"
+}
+```
+**Response (200):**
+```json
+{
+  "id": 42,
+  "username": "newuser",
+  "email": "user@example.com",
+  "role": "buyer",
+  "token": "session-established-through-cookies"
+}
+```
+
+### `/api/request-otp` - Request OTP for authentication (POST)
+**Request:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+**Response (200):**
+```json
+{
+  "message": "OTP sent successfully",
+  "otpId": "otp-session-12345"
+}
+```
+
+### `/api/verify-otp` - Verify OTP for authentication (POST)
+**Request:**
+```json
+{
+  "email": "user@example.com",
+  "otp": "123456",
+  "otpId": "otp-session-12345"
+}
+```
+**Response (200):**
+```json
+{
+  "id": 42,
+  "username": "newuser",
+  "email": "user@example.com",
+  "role": "buyer",
+  "token": "session-established-through-cookies"
+}
+```
+
+### `/api/logout` - Log out the current user (POST)
+**Request:** Empty body
+**Response (200):**
+```json
+{
+  "message": "Logged out successfully"
+}
+```
+
+### `/api/user` - Get current user information (GET)
+**Response (200):**
+```json
+{
+  "id": 42,
+  "username": "newuser",
+  "email": "user@example.com",
+  "role": "buyer",
+  "createdAt": "2025-04-17T03:51:20.000Z",
+  "addresses": []
+}
+```
+
+### `/api/users` - Get all users (Admin only) (GET)
+**Response (200):**
+```json
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "admin",
+      "email": "admin@example.com",
+      "role": "admin",
+      "createdAt": "2025-04-01T10:00:00.000Z"
+    },
+    {
+      "id": 42,
+      "username": "newuser",
+      "email": "user@example.com",
+      "role": "buyer",
+      "createdAt": "2025-04-17T03:51:20.000Z"
+    }
+  ],
+  "total": 2
+}
+```
+
+## Seller Management
+
+### `/api/sellers/pending` - Get pending seller applications (Admin only) (GET)
+**Response (200):**
+```json
+{
+  "sellers": [
+    {
+      "id": 15,
+      "userId": 42,
+      "businessName": "My Shop",
+      "gstin": "22AAAAA0000A1Z5",
+      "address": "123 Seller Street",
+      "phone": "9876543210",
+      "status": "pending",
+      "documents": ["doc1.pdf", "doc2.pdf"],
+      "rejectionReason": null,
+      "createdAt": "2025-04-17T03:51:20.000Z",
+      "user": {
+        "id": 42,
+        "username": "newuser",
+        "email": "user@example.com"
+      }
+    }
+  ],
+  "total": 1
+}
+```
+
+### `/api/sellers/:id/approve` - Approve a seller application (Admin only) (POST)
+**Request:** Empty body
+**Response (200):**
+```json
+{
+  "message": "Seller approved successfully",
+  "seller": {
+    "id": 15,
+    "userId": 42,
+    "businessName": "My Shop",
+    "status": "approved",
+    "updatedAt": "2025-04-17T03:55:20.000Z"
+  }
+}
+```
+
+## Product Management
+
+### `/api/products` - Get products with filtering & pagination (GET)
+**Request Query Parameters:**
+```
+category=Electronics&page=1&limit=12&sellerId=15&approved=true
+```
+**Response (200):**
+```json
+{
+  "products": [
+    {
+      "id": 2020,
+      "name": "Ahina Power in Earbuds",
+      "description": "Wireless earbuds with noise cancellation",
+      "price": 1599,
+      "salePrice": 999,
+      "category": "Electronics",
+      "stock": 100,
+      "imageUrl": "https://example.com/earbuds.jpg",
+      "sellerId": 15,
+      "approved": true,
+      "createdAt": "2025-04-15T03:51:20.000Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 12,
+  "totalPages": 1
+}
+```
+
+### `/api/products` - Create a new product (Seller only) (POST)
+**Request:**
+```json
+{
+  "name": "New Smartphone",
+  "description": "Latest smartphone with advanced features",
+  "price": 12999,
+  "salePrice": 9999,
+  "category": "Electronics",
+  "stock": 50,
+  "imageUrl": "https://example.com/smartphone.jpg",
+  "images": ["https://example.com/smartphone_1.jpg", "https://example.com/smartphone_2.jpg"]
+}
+```
+**Response (201):**
+```json
+{
+  "id": 2021,
+  "name": "New Smartphone",
+  "description": "Latest smartphone with advanced features",
+  "price": 12999,
+  "salePrice": 9999,
+  "category": "Electronics",
+  "stock": 50,
+  "imageUrl": "https://example.com/smartphone.jpg",
+  "images": ["https://example.com/smartphone_1.jpg", "https://example.com/smartphone_2.jpg"],
+  "sellerId": 15,
+  "approved": false,
+  "createdAt": "2025-04-17T04:00:20.000Z"
+}
+```
+
+### `/api/categories` - Get all product categories (GET)
+**Response (200):**
+```json
+[
+  {"id": 1, "name": "Electronics", "image": "https://example.com/electronics.jpg"},
+  {"id": 2, "name": "Fashion", "image": "https://example.com/fashion.jpg"},
+  {"id": 3, "name": "Home & Kitchen", "image": "https://example.com/home.jpg"},
+  {"id": 4, "name": "Books", "image": "https://example.com/books.jpg"},
+  {"id": 5, "name": "Beauty", "image": "https://example.com/beauty.jpg"},
+  {"id": 6, "name": "Toys & Games", "image": "https://example.com/toys.jpg"},
+  {"id": 7, "name": "Sports", "image": "https://example.com/sports.jpg"},
+  {"id": 8, "name": "Mobiles", "image": "https://example.com/mobiles.jpg"}
+]
+```
+
+### `/api/products/:id/variants` - Get variants for a specific product (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 15,
+    "productId": 2020,
+    "sku": "EB-RED-001",
+    "color": "Red",
+    "size": "Regular",
+    "price": 1599,
+    "salePrice": 999,
+    "stock": 50,
+    "imageUrl": "https://example.com/earbuds-red.jpg",
+    "createdAt": "2025-04-15T03:51:20.000Z"
+  },
+  {
+    "id": 16,
+    "productId": 2020,
+    "sku": "EB-BLK-001",
+    "color": "Black",
+    "size": "Regular",
+    "price": 1599,
+    "salePrice": 999,
+    "stock": 75,
+    "imageUrl": "https://example.com/earbuds-black.jpg",
+    "createdAt": "2025-04-15T03:51:20.000Z"
+  }
+]
+```
+
+## Cart and Wishlist
+
+### `/api/wishlist` - Get user's wishlist items (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 1,
+    "userId": 5,
+    "dateAdded": "2025-04-17T08:25:20.921Z",
+    "product": {
+      "id": 3,
+      "name": "Padded Panty 3",
+      "description": "Perfect shapewear for a smooth silhouette",
+      "price": 599,
+      "salePrice": 399,
+      "category": "Fashion",
+      "imageUrl": "https://example.com/padded-panty.jpg",
+      "sellerId": 3
+    }
+  }
+]
+```
+
+### `/api/wishlist` - Add item to wishlist (POST)
+**Request:**
+```json
+{
+  "productId": 3
+}
+```
+**Response (201):**
+```json
+{
+  "id": 1,
+  "userId": 5,
+  "productId": 3,
+  "dateAdded": "2025-04-17T08:25:20.921Z"
+}
+```
+
+### `/api/wishlist/:productId` - Remove item from wishlist (DELETE)
+**Response (200):**
+```json
+{
+  "message": "Item removed from wishlist",
+  "productId": 3
+}
+```
+
+### `/api/cart` - Get user's cart items (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 74,
+    "quantity": 3,
+    "userId": 4,
+    "product": {
+      "id": 2020,
+      "name": "Ahina Power in Earbuds",
+      "description": "Wireless earbuds with noise cancellation",
+      "price": 1599,
+      "salePrice": 999,
+      "category": "Electronics",
+      "imageUrl": "https://example.com/earbuds.jpg",
+      "sellerId": 15
+    }
+  },
+  {
+    "id": 75,
+    "quantity": 1,
+    "userId": 4,
+    "product": {
+      "id": 2011,
+      "name": "Smart Watch",
+      "description": "Fitness tracker with heart rate monitor",
+      "price": 2999,
+      "salePrice": 1999,
+      "category": "Electronics",
+      "imageUrl": "https://example.com/smartwatch.jpg",
+      "sellerId": 15
+    }
+  }
+]
+```
+
+### `/api/cart` - Add item to cart (POST)
+**Request:**
+```json
+{
+  "productId": 2020,
+  "quantity": 1,
+  "variantId": 15  // Optional: Include variantId when adding a specific product variant
+}
+```
+**Response (201):**
+```json
+{
+  "id": 74,
+  "userId": 4,
+  "productId": 2020,
+  "variantId": 15,  // Will be null if no variant was specified
+  "quantity": 1
+}
+```
+
+### `/api/cart/:id` - Update cart item quantity (PUT)
+**Request:**
+```json
+{
+  "quantity": 3
+}
+```
+**Response (200):**
+```json
+{
+  "id": 74,
+  "userId": 4,
+  "productId": 2020,
+  "quantity": 3
+}
+```
+
+## Order Management
+
+### `/api/orders` - Create a new order (POST)
+**Request:**
+```json
+{
+  "addressId": 12,
+  "paymentMethod": "razorpay",
+  "paymentId": "pay_LjUI92JGJILiJ",
+  "items": [
+    {"productId": 2020, "quantity": 3, "price": 999},
+    {"productId": 2011, "quantity": 1, "price": 1999}
+  ],
+  "walletCoinsUsed": 200
+}
+```
+**Response (201):**
+```json
+{
+  "id": 56,
+  "userId": 4,
+  "addressId": 12,
+  "status": "processing",
+  "totalAmount": 4996,
+  "walletCoinsUsed": 200,
+  "discountAmount": 200,
+  "finalAmount": 4796,
+  "paymentMethod": "razorpay",
+  "paymentId": "pay_LjUI92JGJILiJ",
+  "createdAt": "2025-04-17T04:05:20.000Z",
+  "items": [
+    {"id": 120, "orderId": 56, "productId": 2020, "quantity": 3, "price": 999},
+    {"id": 121, "orderId": 56, "productId": 2011, "quantity": 1, "price": 1999}
+  ]
+}
+```
+
+### `/api/orders` - Get user's orders (GET)
+**Response (200):**
+```json
+{
+  "orders": [
+    {
+      "id": 56,
+      "userId": 4,
+      "status": "processing",
+      "totalAmount": 4996,
+      "walletCoinsUsed": 200,
+      "discountAmount": 200,
+      "finalAmount": 4796,
+      "paymentMethod": "razorpay",
+      "createdAt": "2025-04-17T04:05:20.000Z",
+      "items": [
+        {
+          "id": 120,
+          "productId": 2020,
+          "quantity": 3,
+          "price": 999,
+          "product": {
+            "name": "Ahina Power in Earbuds",
+            "imageUrl": "https://example.com/earbuds.jpg"
+          }
+        },
+        {
+          "id": 121,
+          "productId": 2011,
+          "quantity": 1,
+          "price": 1999,
+          "product": {
+            "name": "Smart Watch",
+            "imageUrl": "https://example.com/smartwatch.jpg"
+          }
+        }
+      ]
+    }
+  ],
+  "total": 1
+}
+```
+
+## Payment Integration
+
+### `/api/create-order` - Create Razorpay order (POST)
+**Request:**
+```json
+{
+  "amount": 4796,
+  "currency": "INR",
+  "receipt": "order_receipt_1234"
+}
+```
+**Response (200):**
+```json
+{
+  "id": "order_LjUI92JGJILiJ",
+  "entity": "order",
+  "amount": 479600,
+  "amount_paid": 0,
+  "amount_due": 479600,
+  "currency": "INR",
+  "receipt": "order_receipt_1234",
+  "status": "created",
+  "attempts": 0,
+  "key": "rzp_test_your_key"
+}
+```
+
+### `/api/verify-payment` - Verify Razorpay payment (POST)
+**Request:**
+```json
+{
+  "razorpay_order_id": "order_LjUI92JGJILiJ",
+  "razorpay_payment_id": "pay_LjUI92JGJILiJ",
+  "razorpay_signature": "signature_hash"
+}
+```
+**Response (200):**
+```json
+{
+  "verified": true,
+  "message": "Payment successful"
+}
+```
+
+## Address Management
+
+### `/api/addresses` - Get user's addresses (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 12,
+    "userId": 4,
+    "name": "Home",
+    "addressLine1": "123 Main Street",
+    "addressLine2": "Apartment 4B",
+    "city": "Mumbai",
+    "state": "Maharashtra",
+    "postalCode": "400001",
+    "country": "India",
+    "phone": "9876543210",
+    "isDefault": true
+  },
+  {
+    "id": 13,
+    "userId": 4,
+    "name": "Office",
+    "addressLine1": "456 Work Avenue",
+    "addressLine2": "Floor 10",
+    "city": "Mumbai",
+    "state": "Maharashtra",
+    "postalCode": "400051",
+    "country": "India",
+    "phone": "9876543211",
+    "isDefault": false
+  }
+]
+```
+
+## Content Management
+
+### `/api/banners` - Get all banners (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 1,
+    "title": "Summer Sale",
+    "imageUrl": "https://example.com/summer-sale.jpg",
+    "linkUrl": "/summer-sale",
+    "position": 1,
+    "active": true,
+    "createdAt": "2025-04-01T10:00:00.000Z"
+  },
+  {
+    "id": 2,
+    "title": "Holi Banner",
+    "imageUrl": "https://example.com/holi-banner.jpg",
+    "linkUrl": "/festival-sale",
+    "position": 2,
+    "active": true,
+    "createdAt": "2025-04-05T14:30:00.000Z"
+  }
+]
+```
+
+### `/api/featured-hero-products` - Get featured hero products (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 2,
+    "title": "Holi Banner",
+    "subtitle": "Festival Sale",
+    "description": "Get up to 50% off on all products",
+    "imageUrl": "https://example.com/holi-festival.jpg",
+    "linkUrl": "/festival-sale",
+    "position": 1,
+    "active": true
+  }
+]
+```
+
+### `/api/footer-content` - Get footer content (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 2,
+    "section": "about",
+    "title": "About",
+    "items": [
+      {"title": "Contact Us", "url": "/contact-us"},
+      {"title": "About Us", "url": "/about-us"},
+      {"title": "Careers", "url": "/careers"},
+      {"title": "Corporate Information", "url": "/corporate-info"}
+    ]
+  },
+  {
+    "id": 3,
+    "section": "help",
+    "title": "Help",
+    "items": [
+      {"title": "Payments", "url": "/help/payments"},
+      {"title": "Shipping", "url": "/help/shipping"},
+      {"title": "Cancellation & Returns", "url": "/help/returns"},
+      {"title": "FAQ", "url": "/help/faq"}
+    ]
+  }
+]
+```
+
+## AI Assistant APIs (Google Gemini Integration)
+
+### `/api/ai/chat` - Chat with AI assistant (POST)
+**Request:**
+```json
+{
+  "message": "Can you recommend a smartphone under 15000 rupees?",
+  "sessionId": "ai-session-12345",
+  "userId": 4,
+  "context": ["shopping", "electronics"]
+}
+```
+**Response (200):**
+```json
+{
+  "response": "Based on your budget of under 15,000 rupees, I recommend the following smartphones:\n\n1. Redmi Note 12 Pro - Great camera and battery life at 14,999 rupees\n2. Realme 11 - Excellent performance with 8GB RAM at 12,999 rupees\n3. Samsung Galaxy M34 - One UI experience with 6000 mAh battery at 14,499 rupees\n\nWould you like more details about any of these options?",
+  "suggestions": ["Tell me more about Redmi Note 12 Pro", "Compare battery life", "Show me phones with good cameras"],
+  "relatedProducts": [2101, 2102, 2103]
+}
+```
+
+### `/api/recommendations` - Get personalized product recommendations (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 4,
+    "name": "Padded Panty 4",
+    "description": "Perfect shapewear for a smooth silhouette",
+    "price": 599,
+    "salePrice": 399,
+    "category": "Fashion",
+    "imageUrl": "https://example.com/padded-panty.jpg",
+    "sellerId": 3,
+    "approved": true,
+    "score": 0.92,
+    "reason": "Based on your recent browsing history"
+  },
+  {
+    "id": 900,
+    "name": "Test Product 10",
+    "description": "This is a test product",
+    "price": 1099,
+    "salePrice": 899,
+    "category": "Electronics",
+    "imageUrl": "https://example.com/test-product.jpg",
+    "sellerId": 15,
+    "approved": true,
+    "score": 0.85,
+    "reason": "Popular in your area"
+  }
+]
+```
+
+## Wallet Management
+
+### `/api/wallet` - Get user's wallet (GET)
+**Response (200):**
+```json
+{
+  "id": 4,
+  "userId": 4,
+  "balance": 300,
+  "lifetimeEarned": 500,
+  "createdAt": "2025-03-15T14:30:00.000Z",
+  "updatedAt": "2025-04-17T03:55:20.000Z"
+}
+```
+
+### `/api/wallet/transactions` - Get wallet transactions (GET)
+**Response (200):**
+```json
+{
+  "transactions": [
+    {
+      "id": 25,
+      "walletId": 4,
+      "amount": 500,
+      "type": "credit",
+      "description": "First purchase bonus",
+      "referenceId": null,
+      "createdAt": "2025-03-15T14:30:00.000Z"
+    },
+    {
+      "id": 42,
+      "walletId": 4,
+      "amount": 200,
+      "type": "debit",
+      "description": "Applied to order #56",
+      "referenceId": "ORDER:56",
+      "createdAt": "2025-04-17T04:05:20.000Z"
+    }
+  ],
+  "total": 2
+}
+```
+
+### `/api/wallet/settings` - Get wallet settings (GET)
+**Response (200):**
+```json
+{
+  "id": 1,
+  "firstPurchaseCoins": 500,
+  "coinToRupeeRatio": 1,
+  "isEnabled": true,
+  "maxUsagePercentage": 20,
+  "minCartValue": 1000,
+  "applicableCategories": ["Electronics", "Fashion", "Home & Kitchen"],
+  "updatedAt": "2025-04-10T10:00:00.000Z"
+}
+```
+
+### `/api/wallet/settings` - Update wallet settings (Admin only) (PUT/POST)
+**Request:**
+```json
+{
+  "firstPurchaseCoins": 500,
+  "coinToRupeeRatio": 1,
+  "isEnabled": true,
+  "maxUsagePercentage": 20,
+  "minCartValue": 1000,
+  "applicableCategories": ["Electronics", "Fashion", "Home & Kitchen"]
+}
+```
+**Response (200):**
+```json
+{
+  "id": 1,
+  "firstPurchaseCoins": 500,
+  "coinToRupeeRatio": 1,
+  "isEnabled": true,
+  "maxUsagePercentage": 20,
+  "minCartValue": 1000,
+  "applicableCategories": ["Electronics", "Fashion", "Home & Kitchen"],
+  "updatedAt": "2025-04-17T04:10:20.000Z"
+}
+```
+
+### `/api/wallet/admin/users` - Get all users with wallets (Admin only) (GET)
+**Response (200):**
+```json
+{
+  "users": [
+    {
+      "id": 4,
+      "username": "Acheles1",
+      "email": "user1@example.com",
+      "wallet": {
+        "id": 4,
+        "balance": 300,
+        "lifetimeEarned": 500
+      }
+    },
+    {
+      "id": 6,
+      "username": "SuperAdmin",
+      "email": "admin@example.com",
+      "wallet": {
+        "id": 3,
+        "balance": 0,
+        "lifetimeEarned": 0
+      }
+    }
+  ],
+  "total": 2
+}
+```
+
+### `/api/wallet/admin/transaction` - Create a wallet transaction (Admin only) (POST)
+**Request:**
+```json
+{
+  "userId": 4,
+  "amount": 100,
+  "type": "credit",
+  "description": "Bonus for loyalty"
+}
+```
+**Response (201):**
+```json
+{
+  "transaction": {
+    "id": 43,
+    "walletId": 4,
+    "amount": 100,
+    "type": "credit",
+    "description": "Bonus for loyalty",
+    "referenceId": "ADMIN:6",
+    "createdAt": "2025-04-17T04:15:20.000Z"
+  },
+  "updatedWallet": {
+    "id": 4,
+    "userId": 4,
+    "balance": 400,
+    "lifetimeEarned": 600
+  }
+}
+```
+
+### `/api/wallet/validate-redemption` - Validate wallet coin usage (POST)
+**Request:**
+```json
+{
+  "amount": 4996,
+  "coinsToUse": 200,
+  "categories": ["Electronics"]
+}
+```
+**Response (200):**
+```json
+{
+  "valid": true,
+  "coinsApplicable": 200,
+  "discount": 200,
+  "finalAmount": 4796,
+  "message": "Coins can be applied to this order"
+}
+```
+
+## Rewards and Gift Cards Management
+
+### `/api/rewards` - Get user's rewards (GET)
+**Response (200):**
+```json
+{
+  "rewards": [
+    {
+      "id": 5,
+      "userId": 4,
+      "points": 150,
+      "expiryDate": "2025-07-17T00:00:00.000Z",
+      "status": "active",
+      "createdAt": "2025-04-17T03:20:00.000Z"
+    }
+  ],
+  "total": 1,
+  "pointsTotal": 150
+}
+```
+
+### `/api/rewards/transactions` - Get reward transactions (GET)
+**Response (200):**
+```json
+{
+  "transactions": [
+    {
+      "id": 12,
+      "rewardId": 5,
+      "points": 100,
+      "type": "credit",
+      "description": "Order #45 completed",
+      "referenceId": "ORDER:45",
+      "createdAt": "2025-04-15T10:20:00.000Z"
+    },
+    {
+      "id": 15,
+      "rewardId": 5,
+      "points": 50,
+      "type": "credit",
+      "description": "Review posted for product ID 2011",
+      "referenceId": "REVIEW:28",
+      "createdAt": "2025-04-16T14:30:00.000Z"
+    }
+  ],
+  "total": 2
+}
+```
+
+### `/api/rewards/rules` - Get reward rules (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 1,
+    "name": "Purchase",
+    "pointsPerRupee": 0.1,
+    "description": "Earn 1 point for every ₹10 spent",
+    "isActive": true
+  },
+  {
+    "id": 2,
+    "name": "Review",
+    "pointsValue": 50,
+    "description": "Earn 50 points for writing a product review",
+    "isActive": true
+  },
+  {
+    "id": 3,
+    "name": "Referral",
+    "pointsValue": 200,
+    "description": "Earn 200 points when a friend makes their first purchase using your referral code",
+    "isActive": true
+  }
+]
+```
+
+### `/api/rewards/rules` - Create reward rule (Admin only) (POST)
+**Request:**
+```json
+{
+  "name": "Newsletter Signup",
+  "pointsValue": 20,
+  "description": "Earn 20 points for signing up to our newsletter",
+  "isActive": true
+}
+```
+**Response (201):**
+```json
+{
+  "id": 4,
+  "name": "Newsletter Signup",
+  "pointsValue": 20,
+  "description": "Earn 20 points for signing up to our newsletter",
+  "isActive": true,
+  "createdAt": "2025-04-17T04:20:00.000Z"
+}
+```
+
+### `/api/gift-cards` - Get user's gift cards (GET)
+**Response (200):**
+```json
+{
+  "giftCards": [
+    {
+      "id": "GC-1234-5678-9ABC",
+      "userId": 4,
+      "initialValue": 1000,
+      "currentValue": 750,
+      "expiryDate": "2025-10-17T00:00:00.000Z",
+      "status": "active",
+      "createdAt": "2025-04-01T00:00:00.000Z",
+      "template": {
+        "id": 2,
+        "name": "Birthday Gift Card",
+        "imageUrl": "https://example.com/gift-cards/birthday.jpg"
+      }
+    }
+  ],
+  "total": 1
+}
+```
+
+### `/api/gift-cards/check/:code` - Check gift card validity (GET)
+**Response (200):**
+```json
+{
+  "valid": true,
+  "giftCard": {
+    "id": "GC-1234-5678-9ABC",
+    "currentValue": 750,
+    "expiryDate": "2025-10-17T00:00:00.000Z",
+    "status": "active"
+  }
+}
+```
+
+### `/api/gift-cards/create` - Create a gift card (Admin only) (POST)
+**Request:**
+```json
+{
+  "recipientEmail": "recipient@example.com",
+  "senderName": "John Doe",
+  "amount": 1000,
+  "message": "Happy Birthday!",
+  "templateId": 2
+}
+```
+**Response (201):**
+```json
+{
+  "id": "GC-5678-9ABC-DEFG",
+  "code": "5678-9ABC-DEFG",
+  "amount": 1000,
+  "expiryDate": "2026-04-17T00:00:00.000Z",
+  "status": "active",
+  "recipientEmail": "recipient@example.com",
+  "message": "Happy Birthday!",
+  "senderName": "John Doe",
+  "templateId": 2
+}
+```
+
+### `/api/gift-cards/templates` - Get gift card templates (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 1,
+    "name": "Standard Gift Card",
+    "imageUrl": "https://example.com/gift-cards/standard.jpg",
+    "isActive": true
+  },
+  {
+    "id": 2,
+    "name": "Birthday Gift Card",
+    "imageUrl": "https://example.com/gift-cards/birthday.jpg",
+    "isActive": true
+  },
+  {
+    "id": 3,
+    "name": "Wedding Gift Card",
+    "imageUrl": "https://example.com/gift-cards/wedding.jpg",
+    "isActive": true
+  }
+]
+```
+
+### `/api/gift-cards/redeem` - Redeem a gift card (POST)
+**Request:**
+```json
+{
+  "code": "5678-9ABC-DEFG"
+}
+```
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Gift card successfully redeemed",
+  "giftCard": {
+    "id": "GC-5678-9ABC-DEFG",
+    "initialValue": 1000,
+    "currentValue": 1000,
+    "expiryDate": "2026-04-17T00:00:00.000Z",
+    "status": "active",
+    "template": {
+      "name": "Birthday Gift Card",
+      "imageUrl": "https://example.com/gift-cards/birthday.jpg"
+    }
+  }
+}
+```
+
+## Shipping Management
+
+### `/api/shipping/methods` - Get available shipping methods (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 1,
+    "name": "Standard Delivery",
+    "description": "3-5 business days",
+    "price": 40,
+    "minDays": 3,
+    "maxDays": 5,
+    "isDefault": true,
+    "isActive": true
+  },
+  {
+    "id": 2,
+    "name": "Express Delivery",
+    "description": "1-2 business days",
+    "price": 100,
+    "minDays": 1,
+    "maxDays": 2,
+    "isDefault": false,
+    "isActive": true
+  },
+  {
+    "id": 3,
+    "name": "Same Day Delivery",
+    "description": "Delivered within 24 hours",
+    "price": 200,
+    "minDays": 0,
+    "maxDays": 1,
+    "isDefault": false,
+    "isActive": true
+  }
+]
+```
+
+### `/api/shipping/rules` - Get shipping rules (Admin/Seller only) (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 1,
+    "name": "Free Shipping over ₹499",
+    "condition": {
+      "type": "minimumOrderValue",
+      "value": 499
+    },
+    "action": {
+      "type": "freeShipping",
+      "methodIds": [1]
+    },
+    "isActive": true,
+    "sellerId": null,
+    "createdAt": "2025-03-15T10:00:00.000Z"
+  },
+  {
+    "id": 2,
+    "name": "Heavy Items Surcharge",
+    "condition": {
+      "type": "weight",
+      "value": 10
+    },
+    "action": {
+      "type": "additionalFee",
+      "value": 50
+    },
+    "isActive": true,
+    "sellerId": 15,
+    "createdAt": "2025-04-01T14:30:00.000Z"
+  }
+]
+```
+
+### `/api/shipping/product-overrides` - Get shipping overrides for product (Seller only) (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 1,
+    "productId": 2020,
+    "sellerId": 15,
+    "methodId": 3,
+    "isAvailable": false,
+    "customPrice": null,
+    "reason": "Product too bulky for same-day shipping"
+  },
+  {
+    "id": 2,
+    "productId": 2011,
+    "sellerId": 15,
+    "methodId": 1,
+    "isAvailable": true,
+    "customPrice": 0,
+    "reason": "Free standard shipping for this product"
+  }
+]
+```
+
+## Order Tracking
+
+### `/api/orders/:id/tracking` - Get order tracking details (GET)
+**Response (200):**
+```json
+{
+  "orderId": 56,
+  "trackingId": "TRK987654321",
+  "courier": "BlueDart",
+  "courierUrl": "https://www.bluedart.com/tracking/TRK987654321",
+  "status": "in_transit",
+  "statusTimeline": [
+    {
+      "status": "order_placed",
+      "timestamp": "2025-04-17T04:05:20.000Z",
+      "description": "Order has been placed successfully"
+    },
+    {
+      "status": "payment_confirmed",
+      "timestamp": "2025-04-17T04:06:30.000Z",
+      "description": "Payment has been confirmed"
+    },
+    {
+      "status": "processing",
+      "timestamp": "2025-04-17T06:30:15.000Z",
+      "description": "Order is being processed"
+    },
+    {
+      "status": "shipped",
+      "timestamp": "2025-04-18T10:15:45.000Z",
+      "description": "Order has been shipped"
+    },
+    {
+      "status": "in_transit",
+      "timestamp": "2025-04-19T08:20:30.000Z",
+      "description": "Order is in transit"
+    }
+  ],
+  "estimatedDelivery": "2025-04-21T18:00:00.000Z",
+  "currentLocation": "Mumbai Sorting Facility",
+  "lastUpdated": "2025-04-19T08:20:30.000Z"
+}
+```
+
+### `/api/orders/:id/tracking` - Update order tracking details (Seller/Admin only) (PUT)
+**Request:**
+```json
+{
+  "trackingId": "TRK987654321",
+  "courier": "BlueDart",
+  "courierUrl": "https://www.bluedart.com/tracking/TRK987654321",
+  "status": "delivered",
+  "statusTimeline": {
+    "status": "delivered",
+    "description": "Order has been delivered successfully"
+  },
+  "currentLocation": "Customer Address"
+}
+```
+**Response (200):**
+```json
+{
+  "message": "Tracking information updated successfully",
+  "tracking": {
+    "orderId": 56,
+    "trackingId": "TRK987654321",
+    "courier": "BlueDart",
+    "courierUrl": "https://www.bluedart.com/tracking/TRK987654321",
+    "status": "delivered",
+    "statusTimeline": [
+      {
+        "status": "order_placed",
+        "timestamp": "2025-04-17T04:05:20.000Z",
+        "description": "Order has been placed successfully"
+      },
+      {
+        "status": "payment_confirmed",
+        "timestamp": "2025-04-17T04:06:30.000Z",
+        "description": "Payment has been confirmed"
+      },
+      {
+        "status": "processing",
+        "timestamp": "2025-04-17T06:30:15.000Z",
+        "description": "Order is being processed"
+      },
+      {
+        "status": "shipped",
+        "timestamp": "2025-04-18T10:15:45.000Z",
+        "description": "Order has been shipped"
+      },
+      {
+        "status": "in_transit",
+        "timestamp": "2025-04-19T08:20:30.000Z",
+        "description": "Order is in transit"
+      },
+      {
+        "status": "delivered",
+        "timestamp": "2025-04-20T14:35:10.000Z",
+        "description": "Order has been delivered successfully"
+      }
+    ],
+    "estimatedDelivery": "2025-04-21T18:00:00.000Z",
+    "currentLocation": "Customer Address",
+    "lastUpdated": "2025-04-20T14:35:10.000Z"
+  }
+}
+```
+
+## Support and Help Center
+
+### `/api/support/tickets` - Get user's support tickets (GET)
+**Response (200):**
+```json
+{
+  "tickets": [
+    {
+      "id": 25,
+      "userId": 4,
+      "orderId": 56,
+      "subject": "Order delayed",
+      "status": "open",
+      "priority": "medium",
+      "createdAt": "2025-04-19T12:30:45.000Z",
+      "lastUpdated": "2025-04-19T12:30:45.000Z",
+      "unreadMessages": 1
+    }
+  ],
+  "total": 1
+}
+```
+
+### `/api/support/tickets` - Create a new support ticket (POST)
+**Request:**
+```json
+{
+  "subject": "Order delayed",
+  "message": "My order #56 is showing as in transit, but it's already 2 days past estimated delivery date.",
+  "orderId": 56,
+  "priority": "medium"
+}
+```
+**Response (201):**
+```json
+{
+  "id": 25,
+  "userId": 4,
+  "orderId": 56,
+  "subject": "Order delayed",
+  "status": "open",
+  "priority": "medium",
+  "createdAt": "2025-04-19T12:30:45.000Z",
+  "lastUpdated": "2025-04-19T12:30:45.000Z",
+  "messages": [
+    {
+      "id": 42,
+      "ticketId": 25,
+      "senderId": 4,
+      "senderRole": "buyer",
+      "message": "My order #56 is showing as in transit, but it's already 2 days past estimated delivery date.",
+      "attachments": [],
+      "createdAt": "2025-04-19T12:30:45.000Z",
+      "isRead": false
+    }
+  ]
+}
+```
+
+### `/api/support/tickets/:id/messages` - Get ticket messages (GET)
+**Response (200):**
+```json
+{
+  "ticketId": 25,
+  "messages": [
+    {
+      "id": 42,
+      "ticketId": 25,
+      "senderId": 4,
+      "senderRole": "buyer",
+      "message": "My order #56 is showing as in transit, but it's already 2 days past estimated delivery date.",
+      "attachments": [],
+      "createdAt": "2025-04-19T12:30:45.000Z",
+      "isRead": true
+    },
+    {
+      "id": 43,
+      "ticketId": 25,
+      "senderId": 1,
+      "senderRole": "admin",
+      "message": "Thank you for contacting us. We apologize for the delay. We've checked with the courier and your package will be delivered by tomorrow. We'll provide you with a 10% discount on your next purchase as compensation.",
+      "attachments": [],
+      "createdAt": "2025-04-19T14:15:30.000Z",
+      "isRead": false
+    }
+  ],
+  "total": 2
+}
+```
+
+## Miscellaneous
+
+### `/api/deal-of-the-day` - Get deal of the day (GET)
+**Response (200):**
+```json
+{
+  "title": "Deal of the Day: Padded Panty 5",
+  "product": {
+    "id": 5,
+    "name": "Padded Panty 5",
+    "description": "Enhanced comfort with padded design",
+    "price": 799,
+    "salePrice": 499,
+    "discount": 38,
+    "category": "Fashion",
+    "imageUrl": "https://example.com/padded-panty-5.jpg",
+    "images": [
+      "https://img.fkcdn.com/image/xif0q/shapewear/n/4/f/xl-butt-lifter-177-actrovax-original-imagqhkquhckzjuy.jpeg",
+      "https://img.fkcdn.com/image/xif0q/shapewear/v/m/t/xl-butt-lifter-177-actrovax-original-imagqhkqg4y62hck.jpeg",
+      "https://img.fkcdn.com/image/xif0q/shapewear/j/r/q/xl-butt-lifter-177-actrovax-original-imagqhkqhzgmuu8j.jpeg"
+    ],
+    "sellerId": 3,
+    "approved": true
+  },
+  "expiresAt": "2025-04-18T00:00:00.000Z"
+}
+```## Shipping Management
+
+### `/api/shipping/methods` - Get all shipping methods (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 1,
+    "name": "Standard Shipping",
+    "description": "Delivery within 5-7 business days",
+    "price": 99,
+    "isDefault": true,
+    "estimatedDeliveryDays": 7
+  },
+  {
+    "id": 2,
+    "name": "Express Shipping",
+    "description": "Delivery within 2-3 business days",
+    "price": 199,
+    "isDefault": false,
+    "estimatedDeliveryDays": 3
+  }
+]
+```
+
+### `/api/shipping/methods` - Create a new shipping method (Admin only) (POST)
+**Request:**
+```json
+{
+  "name": "Same Day Delivery",
+  "description": "Delivery on the same day for selected locations",
+  "price": 299,
+  "isDefault": false,
+  "estimatedDeliveryDays": 1
+}
+```
+**Response (201):**
+```json
+{
+  "id": 3,
+  "name": "Same Day Delivery",
+  "description": "Delivery on the same day for selected locations",
+  "price": 299,
+  "isDefault": false,
+  "estimatedDeliveryDays": 1,
+  "createdAt": "2025-04-17T04:20:20.000Z"
+}
+```
+
+### `/api/shipping/zones` - Get all shipping zones (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 1,
+    "name": "All India",
+    "description": "Covers all states in India",
+    "regions": ["All States"],
+    "active": true
+  },
+  {
+    "id": 2,
+    "name": "Metro Cities",
+    "description": "Major metro cities with faster delivery",
+    "regions": ["Delhi", "Mumbai", "Bangalore", "Chennai", "Kolkata", "Hyderabad"],
+    "active": true
+  }
+]
+```
+
+### `/api/shipping/rules` - Get all shipping rules (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 1,
+    "zoneId": 1,
+    "methodId": 1,
+    "minCartValue": 0,
+    "maxCartValue": 499,
+    "price": 99,
+    "active": true
+  },
+  {
+    "id": 2,
+    "zoneId": 1,
+    "methodId": 1,
+    "minCartValue": 500,
+    "maxCartValue": null,
+    "price": 0,
+    "active": true
+  }
+]
+```
+
+### `/api/shipping/rates` - Calculate shipping rates for a cart (GET)
+**Request Query Parameters:**
+```
+zoneId=1&cartValue=1200&weight=500
+```
+**Response (200):**
+```json
+[
+  {
+    "methodId": 1,
+    "name": "Standard Shipping",
+    "description": "Delivery within 5-7 business days",
+    "price": 0,
+    "estimatedDeliveryDays": 7,
+    "note": "Free shipping for orders above ₹500"
+  },
+  {
+    "methodId": 2,
+    "name": "Express Shipping",
+    "description": "Delivery within 2-3 business days",
+    "price": 199,
+    "estimatedDeliveryDays": 3,
+    "note": null
+  }
+]
+```
+
+## Shiprocket Integration
+
+### `/api/shiprocket/status` - Check Shiprocket connection status (Admin/Co-admin only) (GET)
+**Response (200):**
+```json
+{
+  "configured": true,
+  "status": "connected"
+}
+```
+
+### `/api/shiprocket/connect` - Connect to Shiprocket API (Admin/Co-admin only) (POST)
+**Request:**
+```json
+{
+  "email": "kaushlendra.k12@fms.edu",
+  "password": "secure_password_123"
+}
+```
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Successfully connected to Shiprocket",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+### `/api/shiprocket/settings` - Get Shiprocket settings (Admin/Co-admin only) (GET)
+**Response (200):**
+```json
+{
+  "id": 1,
+  "email": "kaushlendra.k12@fms.edu",
+  "password": "********",
+  "defaultCourier": "Delhivery",
+  "autoShipEnabled": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "tokenExpiry": "2025-04-20T04:20:20.000Z"
+}
+```
+
+### `/api/shiprocket/settings` - Update Shiprocket settings (Admin/Co-admin only) (POST)
+**Request:**
+```json
+{
+  "defaultCourier": "Delhivery",
+  "autoShipEnabled": true
+}
+```
+**Response (200):**
+```json
+{
+  "id": 1,
+  "email": "kaushlendra.k12@fms.edu",
+  "password": "********",
+  "defaultCourier": "Delhivery",
+  "autoShipEnabled": true,
+  "updatedAt": "2025-04-17T04:25:20.000Z"
+}
+```
+
+### `/api/shiprocket/test` - Test Shiprocket connection (Admin/Co-admin only) (POST)
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Shiprocket connection is working correctly"
+}
+```
+
+### `/api/shiprocket/couriers` - Get available courier companies (Admin/Co-admin only) (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 1,
+    "name": "Delhivery",
+    "serviceable_zones": "All India"
+  },
+  {
+    "id": 2,
+    "name": "DTDC",
+    "serviceable_zones": "All India"
+  },
+  {
+    "id": 3,
+    "name": "BlueDart",
+    "serviceable_zones": "Metro Cities, Urban Areas"
+  }
+]
+```
+
+### `/api/shiprocket/shipments` - Get all shipments (Admin/Co-admin only) (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": "SR12345",
+    "order_id": "ORD123",
+    "status": "Picked Up",
+    "courier": "Delhivery",
+    "tracking_id": "DEL123456",
+    "created_at": "2025-04-16T14:30:00.000Z"
+  },
+  {
+    "id": "SR12346",
+    "order_id": "ORD124",
+    "status": "In Transit",
+    "courier": "DTDC",
+    "tracking_id": "DTDC789012",
+    "created_at": "2025-04-16T09:45:00.000Z"
+  }
+]
+```
+
+### `/api/shiprocket/pending-orders` - Get pending orders for shipment (Admin/Co-admin only) (GET)
+**Response (200):**
+```json
+[
+  {
+    "id": 57,
+    "userId": 4,
+    "status": "processing",
+    "total": 2999,
+    "date": "2025-04-17T10:05:20.000Z",
+    "shippingDetails": "{\"name\":\"John Doe\",\"addressLine1\":\"123 Main Street\",\"city\":\"Mumbai\",\"state\":\"Maharashtra\",\"postalCode\":\"400001\",\"country\":\"India\",\"phone\":\"9876543210\"}",
+    "items": [
+      {
+        "id": 122,
+        "orderId": 57,
+        "productId": 2012,
+        "quantity": 1,
+        "price": 2999,
+        "product": {
+          "name": "Wireless Headphones"
+        }
+      }
+    ]
+  }
+]
+```
+
+### `/api/orders/:id/shiprocket` - Push order to Shiprocket (Admin/Co-admin/Seller only) (POST)
+**Response (200):**
+```json
+{
+  "message": "Order successfully pushed to Shiprocket",
+  "shiprocketOrderId": "SR12347",
+  "shipmentId": "SH5678",
+  "trackingNumber": "DEL789123"
+}
+```
+
+### `/api/tracking/:trackingNumber` - Track a shipment (GET)
+**Response (200):**
+```json
+{
+  "trackingNumber": "DEL123456",
+  "courierName": "Delhivery",
+  "currentStatus": "In Transit",
+  "expectedDelivery": "2025-04-19T18:00:00.000Z",
+  "trackingUrl": "https://shiprocket.co/tracking/DEL123456",
+  "trackingHistory": [
+    {
+      "status": "Order Picked Up",
+      "location": "Mumbai Warehouse",
+      "timestamp": "2025-04-16T15:30:00.000Z"
+    },
+    {
+      "status": "In Transit",
+      "location": "Mumbai Sorting Center",
+      "timestamp": "2025-04-17T09:15:00.000Z"
+    }
+  ]
+}
+```
+
+### `/api/orders/:orderId/shiprocket/cancel` - Cancel a shipment (Admin/Co-admin/Seller only) (POST)
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Shipment cancelled successfully",
+  "orderId": 57,
+  "shiprocketOrderId": "SR12347"
+}
+```

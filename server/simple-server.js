@@ -13,6 +13,62 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Mock data arrays
+const mockReturns = [];
+const mockOrders = [
+  {
+    id: 1,
+    userId: 1,
+    sellerId: 2,
+    status: 'delivered',
+    date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days ago
+    total: 150,
+    items: [
+      {
+        product: {
+          name: 'Pure Honey - 100% Natural',
+          imageUrl: 'https://placehold.co/100x100?text=Honey'
+        },
+        quantity: 1
+      }
+    ]
+  },
+  {
+    id: 2,
+    userId: 1,
+    sellerId: 2,
+    status: 'completed',
+    date: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days ago
+    total: 275,
+    items: [
+      {
+        product: {
+          name: 'Premium Honey - 500ml',
+          imageUrl: 'https://placehold.co/100x100?text=Honey'
+        },
+        quantity: 1
+      }
+    ]
+  },
+  {
+    id: 3,
+    userId: 1,
+    sellerId: 2,
+    status: 'delivered',
+    date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
+    total: 525,
+    items: [
+      {
+        product: {
+          name: 'Large Honey Jar - 1000ml',
+          imageUrl: 'https://placehold.co/100x100?text=Honey+Large'
+        },
+        quantity: 1
+      }
+    ]
+  }
+];
+
 // Mock product data with variants
 const mockProduct = {
   id: 6956,
@@ -137,6 +193,136 @@ app.delete('/api/cart', (req, res) => {
   console.log('Cart clear request');
   cartItems = [];
   res.json({ success: true, message: 'Cart cleared' });
+});
+
+// Orders endpoint
+app.get('/api/orders', (req, res) => {
+  console.log('Orders fetch request');
+  res.json(mockOrders);
+});
+
+// Return management endpoints
+app.post('/api/returns', authenticateToken, async (req, res) => {
+  try {
+    const { orderId, reason, description, requestType = 'return' } = req.body;
+    
+    if (!orderId) {
+      return res.status(400).json({ error: 'Order ID is required' });
+    }
+
+    // Find the order
+    const order = mockOrders.find(o => o.id === parseInt(orderId));
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // Check if order belongs to user
+    if (order.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized to return this order' });
+    }
+
+    // Check if order is delivered
+    if (order.status !== 'delivered' && order.status !== 'completed') {
+      return res.status(400).json({ error: 'Only delivered orders can be returned' });
+    }
+
+    // Check if return already exists
+    const existingReturn = mockReturns.find(r => r.orderId === parseInt(orderId) && r.buyerId === req.user.id);
+    if (existingReturn) {
+      return res.status(400).json({ error: 'Return request already exists for this order' });
+    }
+
+    // Create return request
+    const returnRequest = {
+      id: mockReturns.length + 1,
+      orderId: parseInt(orderId),
+      buyerId: req.user.id,
+      sellerId: order.sellerId || 1,
+      requestType,
+      reason,
+      description,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    mockReturns.push(returnRequest);
+
+    // Update order status
+    order.status = 'return_requested';
+
+    res.json(returnRequest);
+  } catch (error) {
+    console.error('Error creating return request:', error);
+    res.status(500).json({ error: 'Failed to create return request' });
+  }
+});
+
+app.get('/api/returns', authenticateToken, async (req, res) => {
+  try {
+    let returns;
+    if (req.user.role === 'buyer') {
+      returns = mockReturns.filter(r => r.buyerId === req.user.id);
+    } else if (req.user.role === 'seller') {
+      returns = mockReturns.filter(r => r.sellerId === req.user.id);
+    } else {
+      returns = mockReturns;
+    }
+    
+    res.json(returns);
+  } catch (error) {
+    console.error('Error fetching returns:', error);
+    res.status(500).json({ error: 'Failed to fetch returns' });
+  }
+});
+
+app.get('/api/returns/:id', authenticateToken, async (req, res) => {
+  try {
+    const returnRequest = mockReturns.find(r => r.id === parseInt(req.params.id));
+    if (!returnRequest) {
+      return res.status(404).json({ error: 'Return request not found' });
+    }
+
+    // Check authorization
+    if (req.user.role === 'buyer' && returnRequest.buyerId !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    if (req.user.role === 'seller' && returnRequest.sellerId !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    res.json(returnRequest);
+  } catch (error) {
+    console.error('Error fetching return request:', error);
+    res.status(500).json({ error: 'Failed to fetch return request' });
+  }
+});
+
+app.put('/api/returns/:id', authenticateToken, async (req, res) => {
+  try {
+    const { status, sellerResponse } = req.body;
+    const returnId = parseInt(req.params.id);
+    
+    const returnRequest = mockReturns.find(r => r.id === returnId);
+    if (!returnRequest) {
+      return res.status(404).json({ error: 'Return request not found' });
+    }
+
+    // Only sellers can update return requests
+    if (req.user.role !== 'seller' || returnRequest.sellerId !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    returnRequest.status = status;
+    returnRequest.sellerResponse = sellerResponse;
+    returnRequest.sellerResponseDate = new Date().toISOString();
+    returnRequest.updatedAt = new Date().toISOString();
+
+    res.json(returnRequest);
+  } catch (error) {
+    console.error('Error updating return request:', error);
+    res.status(500).json({ error: 'Failed to update return request' });
+  }
 });
 
 // Start server

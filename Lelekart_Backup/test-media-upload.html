@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Media Upload</title>
+</head>
+<body>
+  <h1>Test Media Upload</h1>
+  <form id="uploadForm" enctype="multipart/form-data">
+    <div>
+      <label for="file">File:</label>
+      <input type="file" id="file" name="file">
+    </div>
+    <div>
+      <label for="alt">Alt Text:</label>
+      <input type="text" id="alt" name="alt">
+    </div>
+    <div>
+      <label for="tags">Tags:</label>
+      <input type="text" id="tags" name="tags">
+    </div>
+    <button type="submit">Upload</button>
+  </form>
+  <div id="result"></div>
+
+  <script>
+    document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const formData = new FormData();
+      const fileInput = document.getElementById('file');
+      const altInput = document.getElementById('alt');
+      const tagsInput = document.getElementById('tags');
+      
+      if (fileInput.files.length === 0) {
+        document.getElementById('result').textContent = 'Please select a file';
+        return;
+      }
+      
+      formData.append('file', fileInput.files[0]);
+      formData.append('alt', altInput.value);
+      formData.append('tags', tagsInput.value);
+      
+      try {
+        const response = await fetch('/api/media', {
+          method: 'POST',
+          body: formData,
+          // No Content-Type header, let the browser set it with the boundary
+        });
+        
+        const data = await response.json();
+        document.getElementById('result').textContent = 'Response: ' + JSON.stringify(data);
+      } catch (error) {
+        document.getElementById('result').textContent = 'Error: ' + error.message;
+      }
+    });
+  </script>
+</body>
+</html>

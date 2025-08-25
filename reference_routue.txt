@@ -4955,13 +4955,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Cart is empty" });
       }
 
-      // Calculate total in lowest currency unit (paise for INR)
-      const totalInPaise = Math.round(
-        cartItems.reduce(
-          (acc, item) => acc + item.product.price * item.quantity,
-          0
-        ) * 100
+      // Get wallet discount information from request
+      const walletDiscount = parseFloat(req.body.walletDiscount) || 0;
+      const walletCoinsUsed = parseInt(req.body.walletCoinsUsed) || 0;
+
+      // Calculate subtotal
+      const subtotal = cartItems.reduce(
+        (acc, item) => acc + item.product.price * item.quantity,
+        0
       );
+
+      // Calculate final amount after wallet discount
+      const finalAmount = Math.max(0, subtotal - walletDiscount);
+
+      // Calculate total in lowest currency unit (paise for INR)
+      const totalInPaise = Math.round(finalAmount * 100);
 
       // Create a unique receipt ID
       const receiptId = `receipt_${Date.now()}_${req.user.id}`;
@@ -4970,6 +4978,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const notes = {
         userId: req.user.id.toString(),
         email: req.user.email,
+        walletDiscount: walletDiscount.toString(),
+        walletCoinsUsed: walletCoinsUsed.toString(),
         items: JSON.stringify(
           cartItems.map((item) => ({
             productId: item.product.id,
@@ -5011,7 +5021,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         razorpaySignature,
         shippingDetails,
         addressId,
-        walletDetails,
+        walletDiscount = 0,
+        walletCoinsUsed = 0,
       } = req.body;
 
       if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
@@ -5084,11 +5095,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Calculate total
-      const total = cartItems.reduce(
+      // Calculate total with wallet discount
+      const subtotal = cartItems.reduce(
         (acc, item) => acc + item.product.price * item.quantity,
         0
       );
+      const total = Math.max(0, subtotal - walletDiscount);
 
       // Create order in our system
       const orderData: any = {
@@ -5111,6 +5123,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(
           `Adding validated addressId ${validatedAddressId} to Razorpay order`
         );
+      }
+
+      // Add wallet information if wallet redemption was applied
+      if (walletDiscount > 0 && walletCoinsUsed > 0) {
+        orderData.walletDiscount = walletDiscount;
+        orderData.walletCoinsUsed = walletCoinsUsed;
       }
 
       console.log(
@@ -5159,15 +5177,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Process wallet redemption if needed
-      if (
-        walletDetails &&
-        walletDetails.walletId &&
-        walletDetails.coinsUsed > 0
-      ) {
+      if (walletDiscount > 0 && walletCoinsUsed > 0) {
         try {
           // Deduct coins from wallet
           console.log(
-            `Deducting ${walletDetails.coinsUsed} coins from wallet ${walletDetails.walletId}`
+            `Deducting ${walletCoinsUsed} coins from wallet for user ${req.user.id}`
           );
 
           // Import the redeemCoinsFromWallet function from wallet-handlers
@@ -5177,8 +5191,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Process the redemption
           await redeemCoinsFromWallet(
+            storage,
             req.user.id,
-            walletDetails.coinsUsed,
+            walletCoinsUsed,
             "ORDER",
             order.id,
             `Order #${order.id} coin redemption (Razorpay payment)`

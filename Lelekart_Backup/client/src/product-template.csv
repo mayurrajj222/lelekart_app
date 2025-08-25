@@ -1,0 +1,10 @@
+name,description,price,category,imageUrl,stock
+Premium T-Shirt,High quality cotton t-shirt for daily wear,499,Fashion,https://lelekart.com/wp-content/uploads/2025/02/tshirt-sample.jpg,100
+Wireless Headphones,Bluetooth 5.0 noise-cancelling headphones with 20h battery life,2999,Electronics,https://lelekart.com/wp-content/uploads/2025/02/headphones-sample.jpg,50
+Cotton Bedsheet,Premium quality 100% cotton bedsheet with 2 pillow covers,1299,Home & Kitchen,https://lelekart.com/wp-content/uploads/2025/02/bedsheet-sample.jpg,200
+
+# FULL TEMPLATE (Use this for more detailed product information)
+# ------------------------------------
+# name,description,price,purchasePrice,mrp,category,brand,color,size,imageUrl,imageUrl2,imageUrl3,stock,sku,weight,specifications
+# Premium T-Shirt,High quality cotton t-shirt for daily wear,499,350,599,Fashion,FashionBrand,"Black, White, Blue","S, M, L, XL",https://lelekart.com/wp-content/uploads/2025/02/tshirt-sample.jpg,https://lelekart.com/wp-content/uploads/2025/02/tshirt-back.jpg,https://lelekart.com/wp-content/uploads/2025/02/tshirt-detail.jpg,100,TS-001,200,"100% cotton with premium stitching"
+# Wireless Headphones,Bluetooth 5.0 noise-cancelling headphones with 20h battery life,2999,2200,3499,Electronics,AudioTech,"Black, Silver",Universal,https://lelekart.com/wp-content/uploads/2025/02/headphones-sample.jpg,https://lelekart.com/wp-content/uploads/2025/02/headphones-side.jpg,https://lelekart.com/wp-content/uploads/2025/02/headphones-case.jpg,50,HP-100,300,"Active noise cancellation, 20 hours battery life"

@@ -23,15 +23,54 @@ const { width } = Dimensions.get('window');
 export default function WishlistScreen() {
   const navigation = useNavigation();
   const { user } = useContext(AuthContext);
-  const { addToCart } = useCart();
+  const { addToCart, cartItems } = useCart();
   const { wishlistItems, removeFromWishlist, loading, fetchWishlist } = useWishlist();
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [removingItem, setRemovingItem] = useState(null);
+  const [productStockInfo, setProductStockInfo] = useState({});
 
   const onRefresh = () => {
     fetchWishlist();
+    // Also refresh stock information
+    if (wishlistItems.length > 0) {
+      fetchProductStockInfo();
+    }
     setRefreshing(false);
+  };
+
+  // Fetch latest stock information for wishlist items
+  const fetchProductStockInfo = async () => {
+    try {
+      console.log('Fetching stock info for', wishlistItems.length, 'items');
+      const stockInfo = {};
+      for (const item of wishlistItems) {
+        const productId = item.productId || item.product?.id;
+        if (productId) {
+          try {
+            console.log('Fetching stock for product:', productId);
+            const response = await fetch(`${API_BASE}/api/products/${productId}`);
+            if (response.ok) {
+              const productData = await response.json();
+              stockInfo[productId] = {
+                stock: productData.stock || 0,
+                price: productData.price || 0,
+                mrp: productData.mrp || 0
+              };
+              console.log('Stock info for product', productId, ':', stockInfo[productId]);
+            } else {
+              console.log('Failed to fetch product', productId, 'status:', response.status);
+            }
+          } catch (error) {
+            console.log(`Failed to fetch stock info for product ${productId}:`, error);
+          }
+        }
+      }
+      console.log('Final stock info:', stockInfo);
+      setProductStockInfo(stockInfo);
+    } catch (error) {
+      console.log('Failed to fetch stock information:', error);
+    }
   };
 
   const confirmRemove = (item) => {
@@ -56,6 +95,13 @@ export default function WishlistScreen() {
       setLoading(false);
     }
   }, [user]);
+
+  // Fetch stock information when wishlist items change
+  useEffect(() => {
+    if (wishlistItems.length > 0) {
+      fetchProductStockInfo();
+    }
+  }, [wishlistItems]);
 
   if (loading) {
     return (
@@ -110,54 +156,93 @@ export default function WishlistScreen() {
                 } catch {}
               }
               imageUrl = imageUrl || 'https://via.placeholder.com/100';
-              const inStock = item.product?.stock > 0;
+              
+              // Get latest stock information
+              const productId = item.productId || item.product?.id;
+              const latestStockInfo = productStockInfo[productId];
+              const currentStock = latestStockInfo?.stock ?? item.product?.stock ?? 0;
+              const currentPrice = latestStockInfo?.price ?? item.product?.price ?? 0;
+              const currentMrp = latestStockInfo?.mrp ?? item.product?.mrp ?? 0;
+              const inStock = currentStock > 0;
+              
+              // Check if the item is already in the cart
+              const inCart = cartItems.some(cartItem => cartItem.productId === productId);
+
+              console.log('Wishlist item stock info:', {
+                productId,
+                itemStock: item.product?.stock,
+                latestStock: latestStockInfo?.stock,
+                currentStock,
+                inStock
+              });
               return (
-                <View key={item.id || index} style={styles.wishlistItem}>
-                  <Image
-                    source={{ uri: imageUrl }}
-                    style={styles.productImage}
-                    resizeMode="cover"
-                  />
-                  <View style={styles.productInfo}>
-                    <Text style={styles.productName} numberOfLines={2}>
-                      {item.product?.name}
-                    </Text>
-                    <View style={styles.priceContainer}>
-                      <Text style={styles.currentPrice}>₹{item.product?.price}</Text>
-                      {item.product?.mrp && item.product?.mrp > item.product?.price && (
-                        <Text style={styles.originalPrice}>₹{item.product?.mrp}</Text>
-                      )}
+                <View key={item.id || index} style={[styles.wishlistItem, !inStock && styles.outOfStockItem]}>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate('ProductDetail', { product: item.product })}
+                    style={styles.productTouchable}
+                  >
+                    <Image
+                      source={{ uri: imageUrl }}
+                      style={[styles.productImage, !inStock && styles.outOfStockImage]}
+                      resizeMode="cover"
+                    />
+                    <View style={styles.productInfo}>
+                      <Text style={styles.productName} numberOfLines={2}>
+                        {item.product?.name}
+                      </Text>
+                      <View style={styles.priceContainer}>
+                        <Text style={styles.currentPrice}>₹{currentPrice}</Text>
+                        {currentMrp && currentMrp > currentPrice && (
+                          <Text style={styles.originalPrice}>₹{currentMrp}</Text>
+                        )}
+                      </View>
+                      <View style={styles.stockInfo}>
+                        {inStock ? (
+                          <View style={styles.inStockContainer}>
+                            <Icon name="check-circle" size={16} color="#4caf50" />
+                            <Text style={styles.inStockText}>
+                              In Stock ({currentStock} available)
+                            </Text>
+                          </View>
+                        ) : (
+                          <View style={styles.outOfStockContainer}>
+                            <Icon name="alert-circle" size={16} color="#f44336" />
+                            <Text style={styles.outOfStockText}>Out of Stock</Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
-                    <View style={styles.stockInfo}>
-                      {inStock ? (
-                        <View style={styles.inStockContainer}>
-                          <Icon name="check-circle" size={16} color="#4caf50" />
-                          <Text style={styles.inStockText}>In Stock</Text>
-                        </View>
-                      ) : (
-                        <View style={styles.outOfStockContainer}>
-                          <Icon name="alert-circle" size={16} color="#f44336" />
-                          <Text style={styles.outOfStockText}>Out of Stock</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
+                  </TouchableOpacity>
                   <View style={styles.actionButtons}>
                     <TouchableOpacity
-                      style={[styles.actionButton, styles.addToCartButton]}
+                      style={[styles.actionButton, inCart ? styles.goToCartButton : styles.addToCartButton]}
                       onPress={() => {
-                        addToCart(item.product, 1)
-                          .then(() => {
-                            Alert.alert('Success', 'Item added to cart');
-                          })
-                          .catch((err) => {
-                            Alert.alert('Error', err?.message || 'Failed to add item to cart');
-                          });
+                        if (inCart) {
+                          // Navigate to cart if item is already there
+                          navigation.navigate('MainTabs', { screen: 'Cart' });
+                        } else {
+                          // Add to cart if not already there
+                          const updatedProduct = {
+                            ...item.product,
+                            stock: currentStock,
+                            price: currentPrice,
+                            mrp: currentMrp
+                          };
+                          addToCart(updatedProduct, 1)
+                            .then(() => {
+                              Alert.alert('Success', 'Item added to cart');
+                            })
+                            .catch((err) => {
+                              Alert.alert('Error', err?.message || 'Failed to add item to cart');
+                            });
+                        }
                       }}
                       disabled={!inStock}
                     >
-                      <Icon name="cart-plus" size={20} color="#fff" />
-                      <Text style={styles.actionButtonText}>Add to Cart</Text>
+                      <Icon name={inCart ? "cart-outline" : "cart-plus"} size={20} color="#fff" />
+                      <Text style={styles.actionButtonText}>
+                        {inCart ? 'Go to Cart' : 'Add to Cart'}
+                      </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.actionButton, styles.removeButton]}
@@ -248,6 +333,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
+  outOfStockItem: {
+    opacity: 0.7,
+    backgroundColor: '#f8f8f8',
+  },
+  outOfStockImage: {
+    opacity: 0.5,
+  },
+  productTouchable: {
+    flex: 1,
+  },
   productImage: { 
     width: width - 64, 
     height: 200, 
@@ -302,6 +397,7 @@ const styles = StyleSheet.create({
     gap: 8
   },
   addToCartButton: { backgroundColor: '#6B3F1D' },
+  goToCartButton: { backgroundColor: '#2874f0' }, // New style for Go to Cart button
   removeButton: { 
     backgroundColor: '#fff', 
     borderWidth: 1, 

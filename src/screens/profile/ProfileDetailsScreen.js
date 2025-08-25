@@ -13,6 +13,7 @@ export default function ProfileDetailsScreen() {
   const [editFields, setEditFields] = useState({ username: '', email: '', phone: '', address: '' });
   const [saving, setSaving] = useState(false);
   const [phoneError, setPhoneError] = useState('');
+  const [emailError, setEmailError] = useState('');
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -70,9 +71,21 @@ export default function ProfileDetailsScreen() {
   };
 
   const handleSave = async () => {
+    // Email required + format validation
+    const email = (editFields.email || '').trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email) {
+      setEmailError('Email is required');
+      return;
+    } else if (!emailRegex.test(email)) {
+      setEmailError('Please enter a valid email address');
+      return;
+    } else {
+      setEmailError('');
+    }
     // Validate phone number
-    if (!/^\d{10}$/.test(editFields.phone)) {
-      setPhoneError('Please enter 10 digit valid phone number');
+    if (!/^[6789]\d{9}$/.test(editFields.phone)) {
+      setPhoneError('Phone must start with 6, 7, 8, or 9 and be 10 digits');
       return;
     } else {
       setPhoneError('');
@@ -128,10 +141,24 @@ export default function ProfileDetailsScreen() {
             <TextInput
               style={styles.input}
               value={editFields.email}
-              onChangeText={v => setEditFields(f => ({ ...f, email: v }))}
+              onChangeText={v => {
+                const next = v.trimStart();
+                setEditFields(f => ({ ...f, email: next }));
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!next) {
+                  setEmailError('Email is required');
+                } else if (!emailRegex.test(next)) {
+                  setEmailError('Please enter a valid email address');
+                } else {
+                  setEmailError('');
+                }
+              }}
               placeholder="Email"
               keyboardType="email-address"
             />
+            {emailError ? (
+              <Text style={{ color: 'red', marginBottom: 6, fontSize: 13 }}>{emailError}</Text>
+            ) : null}
             <TextInput
               style={styles.input}
               value={editFields.phone}
@@ -140,6 +167,12 @@ export default function ProfileDetailsScreen() {
                 const digits = v.replace(/[^0-9]/g, '').slice(0, 10);
                 setEditFields(f => ({ ...f, phone: digits }));
                 if (digits.length === 10) {
+                  if (!/^[6789]\d{9}$/.test(digits)) {
+                    setPhoneError('Phone must start with 6, 7, 8, or 9 and be 10 digits');
+                  } else {
+                    setPhoneError('');
+                  }
+                } else {
                   setPhoneError('');
                 }
               }}

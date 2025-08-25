@@ -1,0 +1,21 @@
+<svg viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="300" height="300" fill="#f1f5f9"/>
+  <g transform="translate(60,60) scale(0.6)">
+    <!-- Building blocks in the background -->
+    <rect x="40" y="180" width="90" height="90" rx="5" fill="#F8C537"/>
+    <rect x="140" y="180" width="90" height="90" rx="5" fill="#EC407A"/>
+    <rect x="240" y="180" width="90" height="90" rx="5" fill="#42A5F5"/>
+    
+    <!-- Teddy bear -->
+    <circle cx="185" cy="110" r="70" fill="#D7CCC8"/>
+    <!-- Ears -->
+    <circle cx="125" cy="70" r="25" fill="#D7CCC8"/>
+    <circle cx="245" cy="70" r="25" fill="#D7CCC8"/>
+    <!-- Face details -->
+    <circle cx="160" cy="100" r="10" fill="#424242"/>
+    <circle cx="210" cy="100" r="10" fill="#424242"/>
+    <circle cx="185" cy="120" r="15" fill="#A1887F"/>
+    <!-- Smile -->
+    <path d="M165 140 C165 150 205 150 205 140" stroke="#424242" stroke-width="5" stroke-linecap="round"/>
+  </g>
+</svg>

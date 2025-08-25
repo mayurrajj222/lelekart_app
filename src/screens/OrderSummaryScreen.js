@@ -90,7 +90,7 @@ export default function OrderSummaryScreen({ route }) {
   const orderTotalBeforeWallet = subtotal + deliveryCharge;
   const maxWalletUsage = Math.floor(orderTotalBeforeWallet * 0.05); // 5% of order total
   const walletDiscount = walletValue > 0 ? Math.min(walletValue, walletBalance, maxWalletUsage) : 0;
-  const finalTotal = Math.max(0, subtotal + deliveryCharge - walletDiscount);
+  const finalTotal = Math.max(0, orderTotalBeforeWallet - walletDiscount);
 
   // Helper function to calculate 5% wallet restriction
   const calculateMaxWalletUsage = (orderTotal) => {
@@ -247,6 +247,19 @@ export default function OrderSummaryScreen({ route }) {
       // Debug: Log the order payload
       const orderPayload = {
         addressId: selectedAddress.id,
+        cartItems: buyNowProduct ? [{
+          productId: buyNowProduct.id,
+          quantity: buyNowQty,
+          price: buyNowProduct.price,
+          variant: buyNowProduct.variant || null,
+          variantId: buyNowProduct.variant?.selectedVariant?.id || null
+        }] : cartItems.map(item => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+          price: item.variant ? item.variant.price : item.product.price,
+          variant: item.variant || null,
+          variantId: item.variant ? item.variant.id : null
+        })),
         shippingDetails: {
           name: selectedAddress.fullName || user?.username || '',
           email: user?.email || '',
@@ -481,7 +494,7 @@ export default function OrderSummaryScreen({ route }) {
           <Text style={styles.sectionTitle}>Redeem Rewards & Wallet</Text>
           <View style={{ marginBottom: 10 }}>
             <Text style={{ color: '#888', fontWeight: 'bold', marginBottom: 2 }}>Wallet Balance: <Text style={{ color: '#2874f0' }}>{walletBalance}</Text></Text>
-            <Text style={{ color: '#666', fontSize: 12, marginBottom: 4 }}>Maximum wallet usage: 5% of order total (₹{maxWalletUsage})</Text>
+            <Text style={{ color: '#666', fontSize: 12, marginBottom: 4 }}>You can use up to 5% of your order total (₹{maxWalletUsage}) from your wallet</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TextInput
                 style={[styles.input, { borderColor: walletError ? '#e53935' : '#eee', marginBottom: 4, flex: 1 }]}
@@ -524,7 +537,7 @@ export default function OrderSummaryScreen({ route }) {
                 <Text style={[styles.priceValue, { color: '#388e3c' }]}>-₹{walletDiscount.toFixed(2)}</Text>
               </View>
             )}
-            {walletDiscount > 0 && walletValue > maxWalletUsage && (
+            {walletValue > maxWalletUsage && walletDiscount > 0 && (
               <View style={styles.priceRow}>
                 <Text style={[styles.priceLabel, { color: '#ff9800', fontSize: 12 }]}>5% restriction applied</Text>
                 <Text style={[styles.priceValue, { color: '#ff9800', fontSize: 12 }]}>₹{maxWalletUsage}</Text>
@@ -641,7 +654,12 @@ export default function OrderSummaryScreen({ route }) {
                     const digits = v.replace(/[^0-9]/g, '').slice(0, 10);
                     setAddForm(f => ({ ...f, phone: digits }));
                     if (digits.length === 10) {
-                      setAddFormErrors(prev => ({ ...prev, phone: '' }));
+                      // Check if phone number starts with 6, 7, 8, or 9
+                      if (/^[6789]/.test(digits)) {
+                        setAddFormErrors(prev => ({ ...prev, phone: '' }));
+                      } else {
+                        setAddFormErrors(prev => ({ ...prev, phone: 'Phone number must start with 6, 7, 8, or 9' }));
+                      }
                     } else if (digits.length > 0 && digits.length < 10) {
                       setAddFormErrors(prev => ({ ...prev, phone: 'Enter a valid 10-digit phone number' }));
                     } else {
@@ -740,6 +758,19 @@ export default function OrderSummaryScreen({ route }) {
           
           <RazorpayPayment
             amount={finalTotal * 100} // Convert to paise
+            cartItems={buyNowProduct ? [{
+              productId: buyNowProduct.id,
+              quantity: buyNowQty,
+              price: buyNowProduct.price,
+              variant: buyNowProduct.variant || null,
+              variantId: buyNowProduct.variant?.selectedVariant?.id || null
+            }] : cartItems.map(item => ({
+              productId: item.product.id,
+              quantity: item.quantity,
+              price: item.variant ? item.variant.price : item.product.price,
+              variant: item.variant || null,
+              variantId: item.variant ? item.variant.id : null
+            }))}
             shippingDetails={{
               name: selectedAddress?.fullName || user?.username || '',
               email: user?.email || '',
@@ -749,6 +780,8 @@ export default function OrderSummaryScreen({ route }) {
               state: selectedAddress?.state || '',
               zipCode: selectedAddress?.pincode || '',
             }}
+            walletDiscount={walletDiscount}
+            walletCoinsUsed={Number(walletToRedeem) > 0 ? Math.min(Number(walletToRedeem), walletBalance) : 0}
             onSuccess={handleRazorpaySuccess}
             onError={handleRazorpayError}
             onCancel={handleRazorpayCancel}

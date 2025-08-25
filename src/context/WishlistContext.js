@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useCart } from './CartContext';
 
 const WishlistContext = createContext();
 
@@ -7,6 +8,20 @@ export function WishlistProvider({ children }) {
   const [wishlistItems, setWishlistItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const GUEST_WISHLIST_KEY = 'lelekart_guest_wishlist';
+  const { cartItems } = useCart();
+
+  // Check if a wishlist item is in cart
+  const isInCart = (productId) => {
+    return cartItems.some(item => item.productId === productId);
+  };
+
+  // Get wishlist item status
+  const getWishlistItemStatus = (productId) => {
+    if (isInCart(productId)) {
+      return 'Item in cart';
+    }
+    return 'Add to cart';
+  };
 
   // Fetch wishlist from local storage
   const fetchWishlist = async () => {
@@ -34,7 +49,14 @@ export function WishlistProvider({ children }) {
   // Add to wishlist
   const addToWishlist = async (product) => {
     try {
-      // Create wishlist item object
+      console.log('Adding product to wishlist:', {
+        id: product.id,
+        name: product.name,
+        stock: product.stock,
+        price: product.price
+      });
+      
+      // Create wishlist item object with complete product information
       const wishlistItem = {
         id: Date.now(), // Generate unique ID
         productId: product.id,
@@ -42,9 +64,18 @@ export function WishlistProvider({ children }) {
           id: product.id,
           name: product.name || 'Product',
           price: product.price || 0,
-          imageUrl: product.imageUrl || product.image || 'https://placehold.co/200x200?text=Product'
+          imageUrl: product.imageUrl || product.image || 'https://placehold.co/200x200?text=Product',
+          stock: product.stock || 0,
+          mrp: product.mrp || 0,
+          // Store additional product details for better display
+          description: product.description,
+          images: product.images,
+          sellerName: product.sellerName,
+          sellerId: product.sellerId
         }
       };
+      
+      console.log('Created wishlist item:', wishlistItem);
       
       // Add to local wishlist state
       setWishlistItems(prev => {
@@ -55,13 +86,12 @@ export function WishlistProvider({ children }) {
           return prev;
         } else {
           // Add new item to wishlist
-          return [...prev, wishlistItem];
+          const newWishlist = [...prev, wishlistItem];
+          // Store in AsyncStorage for persistence
+          AsyncStorage.setItem(GUEST_WISHLIST_KEY, JSON.stringify(newWishlist));
+          return newWishlist;
         }
       });
-      
-      // Store in AsyncStorage for persistence
-      const updatedWishlist = [...wishlistItems, wishlistItem];
-      await AsyncStorage.setItem(GUEST_WISHLIST_KEY, JSON.stringify(updatedWishlist));
       
       console.log('Product added to wishlist successfully');
     } catch (err) {
@@ -73,11 +103,12 @@ export function WishlistProvider({ children }) {
   const removeFromWishlist = async (productId) => {
     try {
       // Remove from local wishlist state
-      setWishlistItems(prev => prev.filter(item => item.productId !== productId));
-      
-      // Update AsyncStorage
-      const updatedWishlist = wishlistItems.filter(item => item.productId !== productId);
-      await AsyncStorage.setItem(GUEST_WISHLIST_KEY, JSON.stringify(updatedWishlist));
+      setWishlistItems(prev => {
+        const newWishlist = prev.filter(item => item.productId !== productId);
+        // Update AsyncStorage
+        AsyncStorage.setItem(GUEST_WISHLIST_KEY, JSON.stringify(newWishlist));
+        return newWishlist;
+      });
       
       console.log('Item removed from wishlist successfully');
     } catch (err) {
@@ -122,7 +153,9 @@ export function WishlistProvider({ children }) {
     isInWishlist,
     clearWishlist,
     toggleWishlist,
-    fetchWishlist
+    fetchWishlist,
+    isInCart,
+    getWishlistItemStatus
   };
 
   return (
