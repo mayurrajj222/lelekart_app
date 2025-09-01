@@ -1,15 +1,28 @@
 {
   "name": "Lelekart",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "start": "react-native start",
     "server": "tsx server/index.ts",
     "dev": "concurrently \"npm run server\" \"npm run start\"",
-    "test": "jest"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "build:android": "cd android && ./gradlew assembleRelease",
+    "build:android-bundle": "cd android && ./gradlew bundleRelease",
+    "build:ios": "cd ios && xcodebuild -workspace Lelekart.xcworkspace -scheme Lelekart -configuration Release",
+    "clean": "cd android && ./gradlew clean && cd .. && rm -rf node_modules && npm install",
+    "clean:ios": "cd ios && rm -rf build && cd .. && npx react-native run-ios",
+    "clean:android": "cd android && ./gradlew clean && cd .. && npx react-native run-android",
+    "format": "prettier --write .",
+    "type-check": "tsc --noEmit",
+    "db:migrate": "tsx server/db/migrate.ts",
+    "db:seed": "tsx server/db/seed.ts"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",

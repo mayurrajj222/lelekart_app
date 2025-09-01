@@ -38,8 +38,14 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
+    // Clear all auth-related state immediately
     setUserState(null);
-    await AsyncStorage.removeItem(USER_STORAGE_KEY);
+    try {
+      await AsyncStorage.removeItem(USER_STORAGE_KEY);
+      // Also clear any other auth-related storage
+      await AsyncStorage.removeItem('lelekart_token');
+      await AsyncStorage.removeItem('lelekart_user_data');
+    } catch {}
   };
 
   return (

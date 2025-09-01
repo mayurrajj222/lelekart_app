@@ -109,6 +109,88 @@ const EnhancedSearchBox = ({
     }
   };
 
+  // Voice search functionality with proper instructions
+  const handleVoiceSearch = async () => {
+    try {
+      // Check if speech recognition is available
+      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        alert('Voice search is not supported on this device. Please use the keyboard to type your search.');
+        return;
+      }
+
+      // Show instructions first
+      const shouldStart = confirm(
+        '🎤 Voice Search Instructions\n\n' +
+        '📝 Speak clearly and say what you want to search for\n' +
+        '🔍 Examples: "red shoes", "mobile phone", "laptop"\n\n' +
+        'Click OK to start speaking, Cancel to abort.'
+      );
+      
+      if (shouldStart) {
+        startVoiceRecognition();
+      }
+    } catch (error) {
+      console.error('Voice search error:', error);
+      alert('Voice search is not available on this device. Please use the keyboard to type your search.');
+    }
+  };
+
+  const startVoiceRecognition = () => {
+    try {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        console.log('Voice recognition started');
+        // Show listening indicator
+        alert('🎤 Listening...\n\nPlease speak now. Say what you want to search for.\n\nClick OK when done speaking.');
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        console.log('Voice transcript:', transcript);
+        
+        // Show what was recognized
+        alert(`✅ Voice Recognized!\n\nYou said: "${transcript}"\n\nSearching for this now...`);
+        
+        onChangeText && onChangeText(transcript);
+        
+        // Automatically trigger search after voice input
+        setTimeout(() => {
+          handleSearchPress();
+        }, 1000);
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Voice recognition error:', event.error);
+        let errorMessage = 'Could not recognize speech. Please try again.';
+        
+        if (event.error === 'no-speech') {
+          errorMessage = 'No speech detected. Please speak clearly and try again.';
+        } else if (event.error === 'audio-capture') {
+          errorMessage = 'Microphone not available. Please check your microphone permissions.';
+        } else if (event.error === 'not-allowed') {
+          errorMessage = 'Microphone access denied. Please allow microphone access in your browser settings.';
+        }
+        
+        alert('Voice Search Error: ' + errorMessage);
+      };
+
+      recognition.onend = () => {
+        console.log('Voice recognition ended');
+      };
+
+      recognition.start();
+    } catch (error) {
+      console.error('Voice recognition error:', error);
+      alert('Voice Search Error: Could not start voice recognition. Please try again.');
+    }
+  };
+
   const renderSuggestionItem = ({ item, index }) => {
     if (typeof item === 'string') {
       // Recent search suggestion (string)
@@ -210,6 +292,14 @@ const EnhancedSearchBox = ({
             <Icon name="close" size={18} color="#b6b1a9" />
           </TouchableOpacity>
         )}
+        
+        {/* Voice Search Section */}
+        <View style={styles.voiceSection}>
+          <TouchableOpacity onPress={handleVoiceSearch} style={styles.voiceButton}>
+            <Icon name="microphone" size={20} color="#2874f0" />
+          </TouchableOpacity>
+          <Text style={styles.voiceHint}>Voice</Text>
+        </View>
       </View>
 
       {/* Search Suggestions Dropdown */}
@@ -394,6 +484,25 @@ const styles = StyleSheet.create({
   noResultsText: {
     fontSize: 14,
     color: '#666',
+  },
+  voiceButton: {
+    padding: 10,
+    marginLeft: 6,
+    borderRadius: 22,
+    backgroundColor: '#e3f2fd',
+    borderWidth: 1,
+    borderColor: '#bbdefb',
+  },
+  voiceSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 6,
+  },
+  voiceHint: {
+    fontSize: 10,
+    color: '#2874f0',
+    marginLeft: 4,
+    fontWeight: '500',
   },
   productsSection: {
     // Add specific styles for the products section if needed

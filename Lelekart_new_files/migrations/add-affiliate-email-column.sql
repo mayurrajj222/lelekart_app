@@ -1,1 +1,0 @@
-ALTER TABLE affiliate_marketing ADD COLUMN email TEXT NOT NULL; 

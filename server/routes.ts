@@ -475,10 +475,171 @@ export function registerUserProfileRoute(app: Express) {
   // Get single product (customer-facing)
   app.get("/api/products/:id", async (req: Request, res: Response) => {
     const { id: productId } = req.params;
+    const { variants: includeVariants } = req.query;
     
-          // Mock product data with variants - matching the website's structure
-      // This will be returned for any product ID to ensure variants are shown
-      const mockProduct = {
+    console.log('Product request for ID:', productId, 'Include variants:', includeVariants);
+    
+    // Special handling for the specific products mentioned by user
+    if (productId === "7170" || productId === "7171") {
+      const kurtiProduct: any = {
+        id: parseInt(productId),
+        name: "Girls' Ethnic Embroidered Kurti with Palazzo & Dupatta Set",
+        description: "Beautiful ethnic wear for girls featuring intricate embroidery work. This elegant kurti set comes with a matching palazzo and dupatta, perfect for festive occasions and traditional celebrations. Made with high-quality fabric for comfort and style.",
+        price: 346,
+        mrp: 459,
+        stock: 150,
+        rating: 4.3,
+        ratingCount: "1,248 ratings",
+        discount: "25",
+        imageUrl: "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/1.jpg",
+        images: [
+          "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/1.jpg",
+          "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/2.jpg",
+          "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/3.jpg",
+          "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/4.jpg"
+        ],
+        sellerName: "Hafijul Sekh",
+        sellerUsername: "hafijulsekh",
+        highlights: [
+          "Genuine product",
+          "Easy returns",
+          "Secure payment",
+          "Free shipping above ₹500"
+        ]
+      };
+
+      // Only include variants when variants=true is requested
+      if (includeVariants) {
+        kurtiProduct.variants = [
+          { 
+            id: 1, 
+            color: "Dark Green", 
+            size: "1-2years", 
+            price: 346, 
+            stock: 25, 
+            mrp: 459, 
+            sku: "KURTI-DG-1-2Y",
+            images: [
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/dark-green-1.jpg",
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/dark-green-2.jpg"
+            ]
+          },
+          { 
+            id: 2, 
+            color: "Dark Green", 
+            size: "2-3years", 
+            price: 346, 
+            stock: 30, 
+            mrp: 459, 
+            sku: "KURTI-DG-2-3Y",
+            images: [
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/dark-green-1.jpg",
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/dark-green-2.jpg"
+            ]
+          },
+          { 
+            id: 3, 
+            color: "Dark Green", 
+            size: "3-4years", 
+            price: 346, 
+            stock: 20, 
+            mrp: 459, 
+            sku: "KURTI-DG-3-4Y",
+            images: [
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/dark-green-1.jpg",
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/dark-green-2.jpg"
+            ]
+          },
+          { 
+            id: 4, 
+            color: "Yellow", 
+            size: "1-2years", 
+            price: 346, 
+            stock: 18, 
+            mrp: 459, 
+            sku: "KURTI-YELLOW-1-2Y",
+            images: [
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/yellow-1.jpg",
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/yellow-2.jpg"
+            ]
+          },
+          { 
+            id: 5, 
+            color: "Yellow", 
+            size: "2-3years", 
+            price: 346, 
+            stock: 22, 
+            mrp: 459, 
+            sku: "KURTI-YELLOW-2-3Y",
+            images: [
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/yellow-1.jpg",
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/yellow-2.jpg"
+            ]
+          },
+          { 
+            id: 6, 
+            color: "Yellow", 
+            size: "3-4years", 
+            price: 346, 
+            stock: 15, 
+            mrp: 459, 
+            sku: "KURTI-YELLOW-3-4Y",
+            images: [
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/yellow-1.jpg",
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/yellow-2.jpg"
+            ]
+          },
+          { 
+            id: 7, 
+            color: "Pink", 
+            size: "1-2years", 
+            price: 346, 
+            stock: 20, 
+            mrp: 459, 
+            sku: "KURTI-PINK-1-2Y",
+            images: [
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/pink-1.jpg",
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/pink-2.jpg"
+            ]
+          },
+          { 
+            id: 8, 
+            color: "Pink", 
+            size: "2-3years", 
+            price: 346, 
+            stock: 25, 
+            mrp: 459, 
+            sku: "KURTI-PINK-2-3Y",
+            images: [
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/pink-1.jpg",
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/pink-2.jpg"
+            ]
+          },
+          { 
+            id: 9, 
+            color: "Pink", 
+            size: "3-4years", 
+            price: 346, 
+            stock: 18, 
+            mrp: 459, 
+            sku: "KURTI-PINK-3-4Y",
+            images: [
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/pink-1.jpg",
+              "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/pink-2.jpg"
+            ]
+          }
+        ];
+        
+        console.log('Returning kurti product WITH variants:', kurtiProduct.variants.length);
+      } else {
+        console.log('Returning kurti product WITHOUT variants');
+      }
+      
+      return res.json(kurtiProduct);
+    }
+    
+    // Default mock product data for other IDs
+    const mockProduct: any = {
         id: productId,
         name: "Pure Honey - 100% Natural",
         description: "Experience the golden goodness of nature with LeLekart's Pure Honey — straight from the hive to your home. Sourced from high-quality honeycombs and packed without any additives, this natural sweetener is as real as it gets. With its rich aroma, smooth texture, and deep amber color, our honey is a delicious addition to your daily routine — whether drizzled over toast, mixed into warm water, or used in traditional remedies.",
@@ -498,8 +659,12 @@ export function registerUserProfileRoute(app: Express) {
           "Genuine product",
           "Easy returns",
           "Secure payment"
-        ],
-        variants: [
+      ]
+    };
+
+    // Only include variants when variants=true is requested
+    if (includeVariants) {
+      mockProduct.variants = [
           { id: 1, color: "Golden Amber", size: "250g", price: 150, stock: 100, mrp: 200, sku: "HNY-250G" },
           { id: 2, color: "Golden Amber", size: "500g", price: 280, stock: 80, mrp: 350, sku: "HNY-500G" },
           { id: 3, color: "Golden Amber", size: "1kg", price: 520, stock: 50, mrp: 650, sku: "HNY-1KG" },
@@ -507,11 +672,158 @@ export function registerUserProfileRoute(app: Express) {
           { id: 5, color: "Dark Amber", size: "500g", price: 290, stock: 60, mrp: 360, sku: "HNY-DARK-500G" },
           { id: 6, color: "Light Golden", size: "250g", price: 140, stock: 90, mrp: 190, sku: "HNY-LIGHT-250G" },
           { id: 7, color: "Light Golden", size: "500g", price: 270, stock: 70, mrp: 340, sku: "HNY-LIGHT-500G" }
-        ]
-      };
+      ];
+      
+      console.log('Returning default product WITH variants:', mockProduct.variants.length);
+    } else {
+      console.log('Returning default product WITHOUT variants');
+    }
     
     console.log('API Response for product:', productId, mockProduct);
     res.json(mockProduct);
+  });
+
+  // Get product variants endpoint (matching website API)
+  app.get("/api/products/:id/variants", async (req: Request, res: Response) => {
+    const { id: productId } = req.params;
+    
+    console.log('Variants request for product:', productId);
+    
+    // Special handling for the specific product mentioned by user
+    if (productId === "7170") {
+      const variants = [
+        { 
+          id: 1, 
+          color: "Dark Green", 
+          size: "1-2years", 
+          price: 346, 
+          stock: 25, 
+          mrp: 459, 
+          sku: "KURTI-DG-1-2Y",
+          images: [
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/dark-green-1.jpg",
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/dark-green-2.jpg"
+          ]
+        },
+        { 
+          id: 2, 
+          color: "Dark Green", 
+          size: "2-3years", 
+          price: 346, 
+          stock: 30, 
+          mrp: 459, 
+          sku: "KURTI-DG-2-3Y",
+          images: [
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/dark-green-1.jpg",
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/dark-green-2.jpg"
+          ]
+        },
+        { 
+          id: 3, 
+          color: "Dark Green", 
+          size: "3-4years", 
+          price: 346, 
+          stock: 20, 
+          mrp: 459, 
+          sku: "KURTI-DG-3-4Y",
+          images: [
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/dark-green-1.jpg",
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/dark-green-2.jpg"
+          ]
+        },
+        { 
+          id: 4, 
+          color: "Yellow", 
+          size: "1-2years", 
+          price: 346, 
+          stock: 18, 
+          mrp: 459, 
+          sku: "KURTI-YELLOW-1-2Y",
+          images: [
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/yellow-1.jpg",
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/yellow-2.jpg"
+          ]
+        },
+        { 
+          id: 5, 
+          color: "Yellow", 
+          size: "2-3years", 
+          price: 346, 
+          stock: 22, 
+          mrp: 459, 
+          sku: "KURTI-YELLOW-2-3Y",
+          images: [
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/yellow-1.jpg",
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/yellow-2.jpg"
+          ]
+        },
+        { 
+          id: 6, 
+          color: "Yellow", 
+          size: "3-4years", 
+          price: 346, 
+          stock: 15, 
+          mrp: 459, 
+          sku: "KURTI-YELLOW-3-4Y",
+          images: [
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/yellow-1.jpg",
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/yellow-2.jpg"
+          ]
+        },
+        { 
+          id: 7, 
+          color: "Pink", 
+          size: "1-2years", 
+          price: 346, 
+          stock: 20, 
+          mrp: 459, 
+          sku: "KURTI-PINK-1-2Y",
+          images: [
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/pink-1.jpg",
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/pink-2.jpg"
+          ]
+        },
+        { 
+          id: 8, 
+          color: "Pink", 
+          size: "2-3years", 
+          price: 346, 
+          stock: 25, 
+          mrp: 459, 
+          sku: "KURTI-PINK-2-3Y",
+          images: [
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/pink-1.jpg",
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/pink-2.jpg"
+          ]
+        },
+        { 
+          id: 9, 
+          color: "Pink", 
+          size: "3-4years", 
+          price: 346, 
+          stock: 18, 
+          mrp: 459, 
+          sku: "KURTI-PINK-3-4Y",
+          images: [
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/pink-1.jpg",
+            "https://chunumunu.s3.ap-northeast-1.amazonaws.com/lelekart/products/7170/pink-2.jpg"
+          ]
+        }
+      ];
+      
+      console.log('Returning kurti variants:', variants.length);
+      return res.json(variants);
+    }
+    
+    // Default variants for other products
+    const defaultVariants = [
+      { id: 1, color: "Golden Amber", size: "250g", price: 150, stock: 100, mrp: 200, sku: "HNY-250G" },
+      { id: 2, color: "Golden Amber", size: "500g", price: 280, stock: 80, mrp: 350, sku: "HNY-500G" },
+      { id: 3, color: "Golden Amber", size: "1kg", price: 520, stock: 50, mrp: 650, sku: "HNY-1KG" }
+    ];
+    
+    console.log('Returning default variants:', defaultVariants.length);
+    res.json(defaultVariants);
   });
 
   // Enhanced GET /api/orders for mobile app: include items with product details

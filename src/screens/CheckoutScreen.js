@@ -109,10 +109,15 @@ export default function CheckoutScreen({ navigation }) {
   }, [walletToRedeem, walletBalance, maxWalletUsage]);
 
   useEffect(() => {
-    fetchAddresses();
-  }, []);
+    if (user) {
+      fetchAddresses();
+    } else {
+      setLoading(false);
+    }
+  }, [user]);
 
   const fetchAddresses = async () => {
+    if (!user) return;
     setAddressLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/addresses`, {
@@ -179,10 +184,18 @@ export default function CheckoutScreen({ navigation }) {
   };
 
   const placeOrder = async () => {
+    // Only logged in users can place orders
+    if (!user) {
+      Alert.alert('Login Required', 'Please login first to place an order.');
+      return;
+    }
+    
+    // Validate selected address
     if (!selectedAddress) {
       Alert.alert('Select Address', 'Please select a shipping address.');
       return;
     }
+    
     if (grandTotal > 0 && !paymentMethod) {
       Alert.alert('Select Payment Method', 'Please select a payment method (Online or Cash on Delivery) before placing your order.');
       return;
@@ -197,25 +210,27 @@ export default function CheckoutScreen({ navigation }) {
     }
     setPlacingOrder(true);
     try {
+      const shippingDetails = {
+        name: selectedAddress.fullName || user?.username || '',
+        email: user?.email || '',
+        phone: selectedAddress.phone || user?.phone || '',
+        address: selectedAddress.address,
+        city: selectedAddress.city,
+        state: selectedAddress.state,
+        zipCode: selectedAddress.pincode,
+        pincode: selectedAddress.pincode,
+        country: selectedAddress.country || 'India',
+        addressType: selectedAddress.addressType,
+        addressName: selectedAddress.addressName,
+      };
+
       const res = await fetch(`${API_BASE}/api/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           addressId: selectedAddress.id,
-          shippingDetails: {
-            name: selectedAddress.fullName || user?.username || '',
-            email: user?.email || '',
-            phone: selectedAddress.phone || user?.phone || '',
-            address: selectedAddress.address,
-            city: selectedAddress.city,
-            state: selectedAddress.state,
-            zipCode: selectedAddress.pincode,
-            pincode: selectedAddress.pincode,
-            country: selectedAddress.country || 'India',
-            addressType: selectedAddress.addressType,
-            addressName: selectedAddress.addressName,
-          },
+          shippingDetails: shippingDetails,
           paymentMethod: grandTotal === 0 ? 'wallet_paid' : paymentMethod,
           walletCoinsUsed: Number(walletToRedeem) > 0 ? Math.min(Number(walletToRedeem), walletBalance) : 0,
           walletDiscount: Number(walletToRedeem) > 0 ? Math.min(Number(walletToRedeem), walletBalance) : 0,
@@ -257,12 +272,21 @@ export default function CheckoutScreen({ navigation }) {
       <ScrollView contentContainerStyle={{ padding: 18 }}>
         <Text style={{ fontSize: 22, fontWeight: 'bold', color: TEXT_PRIMARY, marginBottom: 12 }}>Checkout</Text>
         
-        {/* Login Check */}
+        {/* Login Required Check */}
         {!user ? (
           <View style={{ backgroundColor: '#fff3cd', borderColor: '#ffeaa7', borderWidth: 1, borderRadius: 8, padding: 16, marginBottom: 16 }}>
-            <Text style={{ color: '#856404', fontSize: 16, fontWeight: '600', textAlign: 'center' }}>
+            <Text style={{ color: '#856404', fontSize: 16, fontWeight: '600', textAlign: 'center', marginBottom: 8 }}>
+              Login Required
+            </Text>
+            <Text style={{ color: '#856404', fontSize: 14, textAlign: 'center', marginBottom: 16 }}>
               Please login first to proceed with checkout
             </Text>
+            <TouchableOpacity 
+              style={{ backgroundColor: TEXT_ACCENT, borderRadius: 8, paddingVertical: 12, alignItems: 'center' }}
+              onPress={() => navigation.navigate('Account')}
+            >
+              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>Login Now</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <>
@@ -294,45 +318,51 @@ export default function CheckoutScreen({ navigation }) {
               />
               {walletError ? <Text style={{ color: '#e53935', marginBottom: 4 }}>{walletError}</Text> : null}
             </View>
-            {/* Address Section */}
-            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 6, color: TEXT_PRIMARY }}>Shipping Address</Text>
-            {addressLoading ? (
-              <ActivityIndicator size="large" color={TEXT_ACCENT} />
-            ) : addresses.length === 0 ? (
-              <Text style={{ color: TEXT_SECONDARY, marginBottom: 12 }}>No addresses found.</Text>
-            ) : (
+          </>
+        )}
+            {/* Address Section - Only for logged in users */}
+            {user && (
               <>
-                <Picker
-                  selectedValue={selectedAddress?.id}
-                  onValueChange={id => {
-                    const addr = addresses.find(a => a.id === id);
-                    setSelectedAddress(addr);
-                  }}
-                  style={{ backgroundColor: '#f0f2f5', borderRadius: 8, marginBottom: 8 }}
-                >
-                  {addresses.map(addr => (
-                    <Picker.Item
-                      key={addr.id}
-                      label={`${addr.addressName || addr.fullName} - ${addr.address}, ${addr.city}`}
-                      value={addr.id}
-                    />
-                  ))}
-                </Picker>
-                <TouchableOpacity
-                  style={{ backgroundColor: TEXT_ACCENT, borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginBottom: 12 }}
-                  onPress={() => setShowAddAddressModal(true)}
-                >
-                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>+ Add New Address</Text>
-                </TouchableOpacity>
+                <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 6, color: TEXT_PRIMARY }}>Shipping Address</Text>
+                {addressLoading ? (
+                  <ActivityIndicator size="large" color={TEXT_ACCENT} />
+                ) : addresses.length === 0 ? (
+                  <Text style={{ color: TEXT_SECONDARY, marginBottom: 12 }}>No addresses found.</Text>
+                ) : (
+                  <>
+                    <Picker
+                      selectedValue={selectedAddress?.id}
+                      onValueChange={id => {
+                        const addr = addresses.find(a => a.id === id);
+                        setSelectedAddress(addr);
+                      }}
+                      style={{ backgroundColor: '#f0f2f5', borderRadius: 8, marginBottom: 8 }}
+                    >
+                      {addresses.map(addr => (
+                        <Picker.Item
+                          key={addr.id}
+                          label={`${addr.addressName || addr.fullName} - ${addr.address}, ${addr.city}`}
+                          value={addr.id}
+                        />
+                      ))}
+                    </Picker>
+                    <TouchableOpacity
+                      style={{ backgroundColor: TEXT_ACCENT, borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginBottom: 12 }}
+                      onPress={() => setShowAddAddressModal(true)}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>+ Add New Address</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+                {selectedAddress && (
+                  <View style={{ backgroundColor: CARD_BG, borderRadius: 8, padding: 10, marginBottom: 16, borderWidth: 1, borderColor: BORDER_COLOR }}>
+                    <Text style={{ fontWeight: 'bold', color: TEXT_PRIMARY }}>{selectedAddress.fullName}</Text>
+                    <Text style={{ color: TEXT_SECONDARY }}>{selectedAddress.address}</Text>
+                    <Text style={{ color: TEXT_SECONDARY }}>{selectedAddress.city}, {selectedAddress.state} {selectedAddress.pincode}</Text>
+                    <Text style={{ color: TEXT_SECONDARY }}>{selectedAddress.phone}</Text>
+                  </View>
+                )}
               </>
-            )}
-            {selectedAddress && (
-              <View style={{ backgroundColor: CARD_BG, borderRadius: 8, padding: 10, marginBottom: 16, borderWidth: 1, borderColor: BORDER_COLOR }}>
-                <Text style={{ fontWeight: 'bold', color: TEXT_PRIMARY }}>{selectedAddress.fullName}</Text>
-                <Text style={{ color: TEXT_SECONDARY }}>{selectedAddress.address}</Text>
-                <Text style={{ color: TEXT_SECONDARY }}>{selectedAddress.city}, {selectedAddress.state} {selectedAddress.pincode}</Text>
-                <Text style={{ color: TEXT_SECONDARY }}>{selectedAddress.phone}</Text>
-              </View>
             )}
             {/* Product List */}
             <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 6, color: TEXT_PRIMARY }}>Products</Text>
@@ -427,8 +457,6 @@ export default function CheckoutScreen({ navigation }) {
             <TouchableOpacity style={{ backgroundColor: TEXT_ACCENT, borderRadius: 10, paddingVertical: 15, alignItems: 'center', marginTop: 8, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 }} onPress={placeOrder} disabled={placingOrder}>
               <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 17 }}>{placingOrder ? 'Processing...' : grandTotal === 0 ? 'Place Order' : paymentMethod ? 'Place Order' : 'Select Payment Method'}</Text>
             </TouchableOpacity>
-          </>
-        )}
       </ScrollView>
       {/* Add Address Modal */}
       <Modal

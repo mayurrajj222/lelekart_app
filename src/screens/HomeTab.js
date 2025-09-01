@@ -9,7 +9,7 @@ import { AuthContext } from '../context/AuthContext';
 import DealOfTheDay from './DealOfTheDay';
 import Carousel from 'react-native-reanimated-carousel';
 import { Picker } from '@react-native-picker/picker';
-import EnhancedSearchBox from '../components/EnhancedSearchBox';
+import FullScreenSearch from '../components/FullScreenSearch';
 
 
 const BG_IMAGE = require('./assets/image.png');
@@ -23,7 +23,7 @@ const CHOCOLATE = '#4E2E1E';
 const CHOCOLATE_LIGHT = '#7B4A2D';
 const CHOCOLATE_ACCENT = '#D2691E';
 
-const MemoizedHomeTabHeader = React.memo(function HomeTabHeader({ onWishlistPress, onCameraPress, user, onProfilePress, search, setSearch, onSearchPress, profileUsername, products, handleSearchChange, showSearchSuggestions, setShowSearchSuggestions }) {
+const MemoizedHomeTabHeader = React.memo(function HomeTabHeader({ onWishlistPress, onCameraPress, user, onProfilePress, search, setSearch, onSearchPress, profileUsername, products, handleSearchChange, showSearchSuggestions, setShowSearchSuggestions, setShowFullScreenSearch }) {
   return (
     <>
       <View style={styles.logoHeaderWrap}>
@@ -60,16 +60,16 @@ const MemoizedHomeTabHeader = React.memo(function HomeTabHeader({ onWishlistPres
           <Icon name="heart-outline" size={28} color="#2874f0" />
         </TouchableOpacity>
       </View>
-      <View style={{ marginHorizontal: 16, marginTop: 4, marginBottom: 6, zIndex: 1000 }}>
-        <EnhancedSearchBox
-          value={search}
-          onChangeText={handleSearchChange}
-          onSubmit={onSearchPress}
-          products={products}
-          containerStyle={{}}
-          onSuggestionsChange={setShowSearchSuggestions}
-        />
-      </View>
+      <TouchableOpacity 
+        style={styles.searchBar}
+        onPress={() => setShowFullScreenSearch(true)}
+        activeOpacity={0.8}
+      >
+        <Icon name="magnify" size={20} color="#666" style={styles.searchIcon} />
+        <Text style={styles.searchPlaceholder}>Search for products...</Text>
+        <Icon name="microphone" size={20} color="#666" style={styles.voiceIcon} />
+        <Icon name="camera" size={20} color="#666" style={styles.cameraIcon} />
+      </TouchableOpacity>
     </>
   );
 });
@@ -95,6 +95,7 @@ export default function HomeTab() {
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const [searchHistory, setSearchHistory] = useState([]);
+  const [showFullScreenSearch, setShowFullScreenSearch] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showDropAnim, setShowDropAnim] = useState(false);
   const [pressedIndex, setPressedIndex] = useState(null);
@@ -115,16 +116,25 @@ export default function HomeTab() {
   const [profileUsername, setProfileUsername] = useState(user?.username || '');
   useFocusEffect(
     React.useCallback(() => {
-      // Fetch latest profile info from backend every time Home tab is focused
-      fetch(`${API_BASE}/api/user`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      })
-        .then(res => res.ok ? res.json() : null)
-        .then(data => {
-          if (data && data.username) setProfileUsername(data.username);
-        });
+      // Only fetch profile info if user is logged in
+      if (user) {
+        fetch(`${API_BASE}/api/user`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        })
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data && data.username) setProfileUsername(data.username);
+          })
+          .catch(() => {
+            // If API call fails, clear username
+            setProfileUsername('');
+          });
+      } else {
+        // Clear username when user is not logged in
+        setProfileUsername('');
+      }
       
       // Clear search when returning to home tab
       if (searching || showSearchSuggestions) {
@@ -133,7 +143,7 @@ export default function HomeTab() {
         setShowSearchSuggestions(false);
         setSearchResults([]);
       }
-    }, [])
+    }, [user])
   );
 
   useEffect(() => {
@@ -520,7 +530,7 @@ export default function HomeTab() {
                       <Image
                         source={{ uri: getImageUrl(item) }}
                         style={styles.featuredProductImage}
-                        resizeMode="cover"
+                        resizeMode="contain"
                         onError={(e) => {
                           console.log('Featured image failed to load:', getImageUrl(item));
                         }}
@@ -582,7 +592,7 @@ export default function HomeTab() {
                           <Image
                             source={{ uri: getImageUrl(item) }}
                             style={styles.featuredProductImage}
-                            resizeMode="cover"
+                            resizeMode="contain"
                           />
                           <TouchableOpacity
                             style={styles.wishlistButton}
@@ -790,7 +800,7 @@ export default function HomeTab() {
                                 <Image 
                         source={{ uri: getImageUrl(item) }} 
                         style={styles.productImage} 
-                        resizeMode="cover"
+                        resizeMode="contain"
                         onError={(e) => {
                           console.log('Image failed to load:', getImageUrl(item));
                         }}
@@ -922,6 +932,7 @@ export default function HomeTab() {
               handleSearchChange={handleSearchChange}
               showSearchSuggestions={showSearchSuggestions}
               setShowSearchSuggestions={setShowSearchSuggestions}
+              setShowFullScreenSearch={setShowFullScreenSearch}
             />
             {renderListHeader()}
           </>
@@ -982,7 +993,7 @@ export default function HomeTab() {
                     <Image
                       source={{ uri: getImageUrl(item) }}
                       style={styles.productImage}
-                      resizeMode="cover"
+                      resizeMode="contain"
                     />
                     <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
@@ -999,6 +1010,16 @@ export default function HomeTab() {
       </Modal>
       
       {/* Voice Search Modal - Removed */}
+      
+      {/* Full Screen Search Modal */}
+      <FullScreenSearch
+        visible={showFullScreenSearch}
+        onClose={() => setShowFullScreenSearch(false)}
+        onProductSelect={(product) => {
+          navigation.navigate('ProductDetail', { product });
+        }}
+        products={products}
+      />
     </View>
   );
 }
@@ -1558,5 +1579,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     fontWeight: '500',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchPlaceholder: {
+    flex: 1,
+    fontSize: 16,
+    color: '#666',
+  },
+  voiceIcon: {
+    marginRight: 8,
+  },
+  cameraIcon: {
+    marginLeft: 8,
   },
 }); 

@@ -237,7 +237,8 @@ export default function CartTab() {
                           || (Array.isArray(item.product.images) && item.product.images[0]) 
                           || 'https://placehold.co/60x60?text=No+Image' 
                       }} 
-                      style={styles.cartImageNormal} 
+                      style={styles.cartImageNormal}
+                      resizeMode="contain"
                     />
                   </TouchableOpacity>
                   <View style={styles.cartDetailsNormal}>
@@ -286,7 +287,22 @@ export default function CartTab() {
             </ScrollView>
             <View style={styles.cartMoodButtonsWrap}>
               <Animated.View style={{ transform: [{ scale: checkoutScale }] }}>
-                <TouchableOpacity style={styles.cartMoodCheckoutBtn} onPress={() => navigation.navigate('Checkout')} activeOpacity={0.85}>
+                <TouchableOpacity
+                  style={styles.cartMoodCheckoutBtn}
+                  onPress={() => {
+                    // Require login before entering Checkout
+                    const isLoggedIn = !!authUser;
+                    if (!isLoggedIn) {
+                      Alert.alert('Login Required', 'Please login to continue to checkout.', [
+                        { text: 'Login', onPress: () => navigation.navigate('Account') },
+                        { text: 'Cancel', style: 'cancel' },
+                      ]);
+                      return;
+                    }
+                    navigation.navigate('Checkout');
+                  }}
+                  activeOpacity={0.85}
+                >
                   <Text style={styles.cartMoodCheckoutBtnText}>Checkout</Text>
                 </TouchableOpacity>
               </Animated.View>
