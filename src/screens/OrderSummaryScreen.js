@@ -39,10 +39,15 @@ export default function OrderSummaryScreen({ route }) {
   const { user } = React.useContext(AuthContext);
   const navigation = useNavigation();
   const buyNowProduct = route?.params?.buyNowProduct;
+  const selectedVariant = route?.params?.selectedVariant;
   const initialBuyNowQty = route?.params?.buyNowQty || 1;
   const [buyNowQty, setBuyNowQty] = useState(initialBuyNowQty);
-  // If buyNowProduct is present, use it for summary
-  const items = buyNowProduct ? [{ product: buyNowProduct, quantity: buyNowQty }] : cartItems;
+  // If buyNowProduct is present, use it for summary with variant info
+  const items = buyNowProduct ? [{ 
+    product: buyNowProduct, 
+    quantity: buyNowQty,
+    variant: selectedVariant
+  }] : cartItems;
   
   // State management
   const [addresses, setAddresses] = useState([]);
@@ -174,7 +179,10 @@ export default function OrderSummaryScreen({ route }) {
 
 
   const handleRazorpaySuccess = async (orderId) => {
-    await clearCart();
+    // Only clear cart if not a Buy Now order
+    if (!buyNowProduct) {
+      await clearCart();
+    }
     // Refetch wallet and rewards balances after order
     try {
       const walletRes = await fetch(`${API_BASE}/api/wallet`, { credentials: 'include' });
@@ -226,23 +234,7 @@ export default function OrderSummaryScreen({ route }) {
         return;
       }
 
-      if (buyNowProduct) {
-        try {
-          // Use the buyNow function from cart context
-          await buyNow(buyNowProduct, buyNowQty);
-          
-          // Wait a moment for cart to update
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
-          // Refresh cart to ensure it's updated
-          await fetchCart();
-        } catch (err) {
-          console.error('Buy now error:', err);
-          Alert.alert('Cart Error', err.message || 'Failed to add product to cart');
-          setPlacingOrder(false);
-          return;
-        }
-      }
+      // For Buy Now, we skip adding to cart and directly place the order
 
       // Debug: Log the order payload
       const orderPayload = {
@@ -250,9 +242,9 @@ export default function OrderSummaryScreen({ route }) {
         cartItems: buyNowProduct ? [{
           productId: buyNowProduct.id,
           quantity: buyNowQty,
-          price: buyNowProduct.price,
-          variant: buyNowProduct.variant || null,
-          variantId: buyNowProduct.variant?.selectedVariant?.id || null
+          price: selectedVariant?.price || buyNowProduct.price,
+          variant: selectedVariant || null,
+          variantId: selectedVariant?.id || null
         }] : cartItems.map(item => ({
           productId: item.product.id,
           quantity: item.quantity,
@@ -303,8 +295,10 @@ export default function OrderSummaryScreen({ route }) {
       // Debug: Log the backend response
       console.log('Order response:', orderData);
       
-      // Clear cart after successful order
-      await clearCart();
+      // Clear cart after successful order (only if not Buy Now)
+      if (!buyNowProduct) {
+        await clearCart();
+      }
       
       // Refetch wallet and rewards balances after order
       try {

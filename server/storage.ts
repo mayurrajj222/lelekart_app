@@ -12,8 +12,7 @@ import {
   reviews,
   rewards,
   rewardTransactions,
-  rewardRules,
-  returnRequests
+  rewardRules
 } from "../shared/schema";
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
@@ -219,7 +218,7 @@ export const storage = {
     // Process the images field in the response
     if (updatedVariant.images) {
       try {
-        const parsedImages = JSON.parse(updatedVariant.images);
+        const parsedImages = JSON.parse(updatedVariant.images as string);
         updatedVariant.images = Array.isArray(parsedImages) ? parsedImages : [];
       } catch (error) {
         console.error(`Error parsing images for updated variant ${id}:`, error);
@@ -254,6 +253,23 @@ export const storage = {
   },
 
   // ========== Cart Methods ==========
+  async getCartItems(userId: number): Promise<any[]> {
+    // This is a placeholder - implement actual cart fetching logic
+    console.log(`Getting cart items for user ${userId}`);
+    return [];
+  },
+
+  async addToCart(userId: number, product: any, quantity: number): Promise<any> {
+    // This is a placeholder - implement actual cart addition logic
+    console.log(`Adding product ${product.id} to cart for user ${userId}, quantity: ${quantity}`);
+    return { id: Date.now(), userId, product, quantity };
+  },
+
+  async updateCartItemQuantity(userId: number, cartItemId: number, quantity: number): Promise<void> {
+    // This is a placeholder - implement actual cart update logic
+    console.log(`Updating cart item ${cartItemId} quantity to ${quantity} for user ${userId}`);
+  },
+
   async removeFromCart(userId: number, cartItemId: number): Promise<void> {
     // This is a placeholder - implement actual cart removal logic
     console.log(`Removing cart item ${cartItemId} for user ${userId}`);
@@ -267,6 +283,37 @@ export const storage = {
   // ========== Order Methods ==========
   async getOrders(userId: number): Promise<any[]> {
     return db.select().from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt));
+  },
+
+  async getOrder(id: number): Promise<any> {
+    const result = await db.select().from(orders).where(eq(orders.id, id));
+    return result[0] || null;
+  },
+
+  async getOrderItems(orderId: number): Promise<any[]> {
+    const result = await db.select({
+      id: orderItems.id,
+      orderId: orderItems.orderId,
+      productId: orderItems.productId,
+      quantity: orderItems.quantity,
+      price: orderItems.price,
+      product: products
+    })
+    .from(orderItems)
+    .leftJoin(products, eq(orderItems.productId, products.id))
+    .where(eq(orderItems.orderId, orderId));
+    return result;
+  },
+
+  async orderHasSellerProducts(orderId: number, sellerId: number): Promise<boolean> {
+    const result = await db.select()
+      .from(orderItems)
+      .leftJoin(products, eq(orderItems.productId, products.id))
+      .where(and(
+        eq(orderItems.orderId, orderId),
+        eq(products.sellerId, sellerId)
+      ));
+    return result.length > 0;
   },
 
   // ========== Address Methods ==========
@@ -297,98 +344,10 @@ export const storage = {
   },
 
   // ========== Wallet Methods ========== 
-  async getUserWallet(userId: number): Promise<any> {
-    const result = await db.select().from('wallets').where(eq('user_id', userId));
-    return result[0] || null;
-  },
-
-  async createUserWalletIfNotExists(userId: number): Promise<any> {
-    let wallet = await this.getUserWallet(userId);
-    if (!wallet) {
-      const [newWallet] = await db.insert('wallets').values({ user_id: userId, balance: 0 }).returning();
-      wallet = newWallet;
-    }
-    return wallet;
-  },
-
-  async deductFromWallet(userId: number, amount: number, description: string): Promise<any> {
-    const wallet = await this.createUserWalletIfNotExists(userId);
-    if (wallet.balance < amount) throw new Error('Insufficient wallet balance');
-    const newBalance = wallet.balance - amount;
-    await db.update('wallets').set({ balance: newBalance }).where(eq('user_id', userId));
-    // Optionally, add a wallet transaction record here
-    return { ...wallet, balance: newBalance };
-  },
-
+  // Note: Wallet functionality is not fully implemented in the current schema
+  // These methods are placeholders for future implementation
+  
   // ========== Return Management Methods ==========
-  async createReturnRequest(data: any): Promise<any> {
-    const [returnRequest] = await db.insert(returnRequests).values(data).returning();
-    return returnRequest;
-  },
-
-  async getReturnRequestsByBuyerId(buyerId: number, limit: number = 10, offset: number = 0): Promise<any[]> {
-    return db.select()
-      .from(returnRequests)
-      .where(eq(returnRequests.buyerId, buyerId))
-      .orderBy(desc(returnRequests.createdAt))
-      .limit(limit)
-      .offset(offset);
-  },
-
-  async getReturnRequestsBySellerId(sellerId: number, limit: number = 10, offset: number = 0): Promise<any[]> {
-    return db.select()
-      .from(returnRequests)
-      .where(eq(returnRequests.sellerId, sellerId))
-      .orderBy(desc(returnRequests.createdAt))
-      .limit(limit)
-      .offset(offset);
-  },
-
-  async getReturnRequests(filters: any = {}): Promise<any[]> {
-    let query = db.select().from(returnRequests);
-    
-    if (filters.status) {
-      query = query.where(eq(returnRequests.status, filters.status));
-    }
-    
-    if (filters.buyerId) {
-      query = query.where(eq(returnRequests.buyerId, filters.buyerId));
-    }
-    
-    if (filters.sellerId) {
-      query = query.where(eq(returnRequests.sellerId, filters.sellerId));
-    }
-    
-    return query.orderBy(desc(returnRequests.createdAt));
-  },
-
-  async updateReturnRequest(id: number, data: any): Promise<any> {
-    const [returnRequest] = await db.update(returnRequests)
-      .set(data)
-      .where(eq(returnRequests.id, id))
-      .returning();
-    return returnRequest;
-  },
-
-  async getReturnRequest(id: number): Promise<any> {
-    const result = await db.select().from(returnRequests).where(eq(returnRequests.id, id));
-    return result[0] || null;
-  },
-
-  async getOrdersMarkedForReturn(): Promise<any[]> {
-    return db.select()
-      .from(orders)
-      .where(eq(orders.status, 'marked_for_return'))
-      .orderBy(desc(orders.date));
-  },
-
-  async markOrderForReturn(orderId: number): Promise<any> {
-    const [order] = await db.update(orders)
-      .set({ status: 'marked_for_return' })
-      .where(eq(orders.id, orderId))
-      .returning();
-    return order;
-  },
-
-  // ========== End Return Management Methods ==========
+  // Note: Return management functionality is not fully implemented in the current schema
+  // These methods are placeholders for future implementation
 }; 

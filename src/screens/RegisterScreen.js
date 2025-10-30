@@ -125,6 +125,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     fontSize: 16,
     marginBottom: 12,
+    color: '#000',
   },
   pickerContainer: {
     width: '100%',

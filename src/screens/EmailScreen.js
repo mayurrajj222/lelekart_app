@@ -274,6 +274,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     marginBottom: 14,
     fontFamily: 'serif',
+    color: '#000',
     shadowColor: '#000',
     shadowOpacity: 0.04,
     shadowRadius: 4,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, TouchableOpacity, Text, Alert, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import Voice from '@react-native-voice/voice';
+// import Voice from '@react-native-voice/voice';
 
 const VoiceSearch = ({ onVoiceResult, isListening, setIsListening, style }) => {
   const [results, setResults] = useState([]);
@@ -9,15 +9,15 @@ const VoiceSearch = ({ onVoiceResult, isListening, setIsListening, style }) => {
 
   useEffect(() => {
     // Initialize voice recognition
-    Voice.onSpeechStart = onSpeechStart;
-    Voice.onSpeechEnd = onSpeechEnd;
-    Voice.onSpeechError = onSpeechError;
-    Voice.onSpeechResults = onSpeechResults;
-    Voice.onSpeechPartialResults = onSpeechPartialResults;
+    // Voice.onSpeechStart = onSpeechStart;
+    // Voice.onSpeechEnd = onSpeechEnd;
+    // Voice.onSpeechError = onSpeechError;
+    // Voice.onSpeechResults = onSpeechResults;
+    // Voice.onSpeechPartialResults = onSpeechPartialResults;
 
     return () => {
       // Cleanup
-      Voice.destroy().then(Voice.removeAllListeners);
+      // Voice.destroy().then(Voice.removeAllListeners);
     };
   }, []);
 
@@ -57,7 +57,9 @@ const VoiceSearch = ({ onVoiceResult, isListening, setIsListening, style }) => {
     try {
       setError('');
       setIsListening(true);
-      await Voice.start('en-US');
+      // await Voice.start('en-US');
+      Alert.alert('Voice Search', 'Voice search is temporarily disabled. Please use text search instead.');
+      setIsListening(false);
     } catch (error) {
       console.error('Error starting voice recognition:', error);
       setError('Failed to start voice recognition');
@@ -68,7 +70,7 @@ const VoiceSearch = ({ onVoiceResult, isListening, setIsListening, style }) => {
 
   const stopVoiceRecognition = async () => {
     try {
-      await Voice.stop();
+      // await Voice.stop();
       setIsListening(false);
     } catch (error) {
       console.error('Error stopping voice recognition:', error);

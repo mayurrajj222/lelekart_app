@@ -73,7 +73,7 @@ def enableProguardInReleaseBuilds = false
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 android {
-    ndkVersion rootProject.ext.ndkVersion
+    ndkVersion "27.1.12297006"
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
@@ -82,8 +82,12 @@ android {
         applicationId "com.lelekart"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 10
-        versionName "1.9"
+        versionCode 13
+        versionName "2.2"
+        // Limit native builds to ARM ABIs to avoid x86 CMake/NDK issues
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a'
+        }
     }
     signingConfigs {
         debug {
@@ -109,6 +113,13 @@ android {
             signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+        }
+    }
+    packagingOptions {
+        resources {
+            excludes += [
+                    'META-INF/androidx.localbroadcastmanager_localbroadcastmanager.version'
+            ]
         }
     }
 }

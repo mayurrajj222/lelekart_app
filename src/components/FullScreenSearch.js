@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { API_BASE } from '../lib/api';
+import VoiceSearch from './VoiceSearch';
 
 const { width, height } = Dimensions.get('window');
 
@@ -30,6 +31,7 @@ const FullScreenSearch = ({
   const [searchResults, setSearchResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   
   const inputRef = useRef(null);
   const debounceRef = useRef(null);
@@ -102,29 +104,147 @@ const FullScreenSearch = ({
     saveRecentSearch(searchQuery.trim());
 
     try {
-      // Search in local products first
-      const localResults = products.filter(product => {
-        const name = product.name || product.title || '';
-        return name.toLowerCase().includes(searchQuery.toLowerCase());
-      });
-
-      setSearchResults(localResults);
-
-      // Also try API search
-      const response = await fetch(`${API_BASE}/api/lelekart-search?q=${encodeURIComponent(searchQuery)}&limit=20`);
-      if (response.ok) {
-        const apiResults = await response.json();
-        // Merge API results with local results, avoiding duplicates
-        const mergedResults = [...localResults];
-        apiResults.forEach(apiProduct => {
-          if (!mergedResults.find(localProduct => localProduct.id === apiProduct.id)) {
-            mergedResults.push(apiProduct);
+      const query = searchQuery.toLowerCase().trim();
+      
+      // Enhanced search with multiple matching strategies
+      const searchInProducts = (productList) => {
+        const exactMatches = [];
+        const partialMatches = [];
+        const fuzzyMatches = [];
+        const broadMatches = [];
+        
+        productList.forEach(product => {
+          // Get all searchable text fields
+          const name = (product.name || product.title || '').toLowerCase();
+          const category = (product.category || '').toLowerCase();
+          const description = (product.description || '').toLowerCase();
+          const seller = (product.sellerName || product.seller?.name || '').toLowerCase();
+          const brand = (product.brand || '').toLowerCase();
+          const tags = (product.tags || '').toLowerCase();
+          
+          // Create a combined search string for broader matching
+          const allText = `${name} ${category} ${description} ${seller} ${brand} ${tags}`.toLowerCase();
+          
+          // Exact name match (highest priority)
+          if (name.includes(query)) {
+            exactMatches.push(product);
+          }
+          // Category or brand match
+          else if (category.includes(query) || brand.includes(query)) {
+            partialMatches.push(product);
+          }
+          // Description, seller, or tags match
+          else if (description.includes(query) || seller.includes(query) || tags.includes(query)) {
+            fuzzyMatches.push(product);
+          }
+          // Broad text search - search in all combined text
+          else if (allText.includes(query)) {
+            broadMatches.push(product);
+          }
+          // Word-by-word matching with more flexible criteria
+          else {
+            const queryWords = query.split(/\s+/).filter(word => word.length > 1); // Reduced from 2 to 1
+            const allWords = allText.split(/\s+/);
+            
+            // Check for partial word matches
+            const hasWordMatch = queryWords.some(queryWord => 
+              allWords.some(textWord => {
+                // Exact word match
+                if (textWord === queryWord) return true;
+                // Word contains query word
+                if (textWord.includes(queryWord)) return true;
+                // Query word contains text word (for shorter words)
+                if (queryWord.includes(textWord) && textWord.length > 2) return true;
+                // Fuzzy matching for similar words (simple character overlap)
+                if (queryWord.length > 3 && textWord.length > 3) {
+                  const overlap = [...queryWord].filter(char => textWord.includes(char)).length;
+                  return overlap >= Math.min(queryWord.length * 0.6, textWord.length * 0.6);
+                }
+                return false;
+              })
+            );
+            
+            if (hasWordMatch) {
+              broadMatches.push(product);
+            }
           }
         });
-        setSearchResults(mergedResults);
+        
+        // Combine results with priority order
+        return [...exactMatches, ...partialMatches, ...fuzzyMatches, ...broadMatches];
+      };
+
+      // Search in local products first
+      let localResults = searchInProducts(products);
+
+      // Try multiple API search endpoints
+      let apiResults = [];
+      try {
+        // Try the main search endpoint
+        let response = await fetch(`${API_BASE}/api/lelekart-search?q=${encodeURIComponent(searchQuery)}&limit=20`);
+        if (response.ok) {
+          apiResults = await response.json();
+        }
+        
+        // If no results, try alternative search endpoints
+        if (!apiResults || apiResults.length === 0) {
+          // Try products endpoint with search
+          response = await fetch(`${API_BASE}/api/products?search=${encodeURIComponent(searchQuery)}&limit=20`);
+          if (response.ok) {
+            const data = await response.json();
+            apiResults = Array.isArray(data) ? data : (data.products || data.data || []);
+          }
+        }
+        
+        // If still no results, try a broader search
+        if (!apiResults || apiResults.length === 0) {
+          // Try searching with individual words
+          const words = searchQuery.split(' ').filter(word => word.length > 2);
+          for (const word of words) {
+            response = await fetch(`${API_BASE}/api/products?search=${encodeURIComponent(word)}&limit=10`);
+            if (response.ok) {
+              const data = await response.json();
+              const wordResults = Array.isArray(data) ? data : (data.products || data.data || []);
+              apiResults = [...apiResults, ...wordResults];
+              if (apiResults.length >= 10) break; // Stop if we have enough results
+            }
+          }
+        }
+        
+      } catch (error) {
+        console.log('API search error:', error);
       }
+
+      // Enhanced API results search
+      const enhancedApiResults = searchInProducts(apiResults);
+
+      // Merge results, avoiding duplicates
+      const mergedResults = [...localResults];
+      enhancedApiResults.forEach(apiProduct => {
+        if (!mergedResults.find(localProduct => localProduct.id === apiProduct.id)) {
+          mergedResults.push(apiProduct);
+        }
+      });
+
+      // If still no results, show popular/random products as fallback
+      if (mergedResults.length === 0) {
+        const fallbackProducts = products
+          .filter(product => product.name && product.price)
+          .sort(() => Math.random() - 0.5) // Randomize
+          .slice(0, 10); // Show 10 random products
+        
+        setSearchResults(fallbackProducts);
+      } else {
+        setSearchResults(mergedResults.slice(0, 20)); // Limit to 20 results
+      }
+
     } catch (error) {
       console.log('Search error:', error);
+      // Even on error, show some products as fallback
+      const fallbackProducts = products
+        .filter(product => product.name && product.price)
+        .slice(0, 8);
+      setSearchResults(fallbackProducts);
     } finally {
       setLoading(false);
     }
@@ -138,6 +258,11 @@ const FullScreenSearch = ({
   const handleProductSelect = (product) => {
     onProductSelect && onProductSelect(product);
     onClose();
+  };
+
+  const handleVoiceResult = (text) => {
+    setSearchQuery(text);
+    handleSearch();
   };
 
   const clearSearch = () => {
@@ -262,6 +387,12 @@ const FullScreenSearch = ({
               onSubmitEditing={handleSearch}
               returnKeyType="search"
             />
+            <VoiceSearch
+              onVoiceResult={handleVoiceResult}
+              isListening={isListening}
+              setIsListening={setIsListening}
+              style={styles.voiceButton}
+            />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
                 <Icon name="close" size={20} color="#666" />
@@ -320,19 +451,25 @@ const FullScreenSearch = ({
                 <View style={styles.loadingContainer}>
                   <Text style={styles.loadingText}>Searching...</Text>
                 </View>
-              ) : searchResults.length > 0 ? (
-                <FlatList
-                  data={searchResults}
-                  renderItem={renderSearchResult}
-                  keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-                  showsVerticalScrollIndicator={false}
-                />
               ) : (
-                <View style={styles.noResultsContainer}>
-                  <Icon name="magnify" size={48} color="#ddd" />
-                  <Text style={styles.noResultsText}>No products found</Text>
-                  <Text style={styles.noResultsSubtext}>Try different keywords</Text>
-                </View>
+                <>
+                  {searchResults.length > 0 && (
+                    <View style={styles.resultsHeader}>
+                      <Text style={styles.resultsHeaderText}>
+                        {searchResults.some(product => {
+                          const name = (product.name || product.title || '').toLowerCase();
+                          return name.includes(searchQuery.toLowerCase());
+                        }) ? `Found ${searchResults.length} products` : 'Showing related products'}
+                      </Text>
+                    </View>
+                  )}
+                  <FlatList
+                    data={searchResults}
+                    renderItem={renderSearchResult}
+                    keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                    showsVerticalScrollIndicator={false}
+                  />
+                </>
               )}
             </View>
           )}
@@ -374,8 +511,13 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     paddingVertical: 12,
+    color: '#000',
   },
   clearButton: {
+    padding: 4,
+  },
+  voiceButton: {
+    marginLeft: 8,
     padding: 4,
   },
   content: {
@@ -426,6 +568,18 @@ const styles = StyleSheet.create({
   },
   resultsContainer: {
     flex: 1,
+  },
+  resultsHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  resultsHeaderText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
   },
   loadingContainer: {
     flex: 1,

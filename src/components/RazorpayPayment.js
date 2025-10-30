@@ -93,6 +93,7 @@ const RazorpayPayment = ({
           razorpayPaymentId: paymentId,
           razorpayOrderId: orderId,
           razorpaySignature: signature,
+          cartItems: cartItems || [],
           shippingDetails: shippingDetails,
           walletDiscount: walletDiscount,
           walletCoinsUsed: walletCoinsUsed,

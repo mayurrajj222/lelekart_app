@@ -8,6 +8,7 @@ import { API_BASE } from '../lib/api';
 import { AuthContext } from '../context/AuthContext';
 import { Picker } from '@react-native-picker/picker';
 
+
 const INDIAN_STATES = [
   'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana',
   'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
@@ -37,15 +38,208 @@ export default function CartTab() {
   const { user: authUser } = React.useContext(AuthContext);
   const navigation = useNavigation();
   
+  // Resolve best image URL for a cart item (handles guest users and various shapes)
+  const resolveCartItemImageUrl = (item) => {
+    try {
+      console.log('=== RESOLVING IMAGE FOR CART ITEM ===');
+      console.log('Item name:', item?.product?.name || item?.name);
+      console.log('Full item structure:', JSON.stringify(item, null, 2));
+      
+      // For guest users, item might be the product directly
+      const product = item?.product || item || {};
+      
+      // Helper function to construct proper URL
+      const constructUrl = (imageUrl) => {
+        if (!imageUrl || typeof imageUrl !== 'string') return null;
+        const cleanUrl = imageUrl.trim();
+        if (!cleanUrl) return null;
+        if (cleanUrl.startsWith('http')) return cleanUrl;
+        return cleanUrl.startsWith('/') ? `${API_BASE}${cleanUrl}` : `${API_BASE}/${cleanUrl}`;
+      };
+      
+      // Try different image sources in priority order
+      const imageSources = [
+        // 1. Variant images (highest priority)
+        ...(item?.variant?.images && Array.isArray(item.variant.images) ? item.variant.images : []),
+        // 2. Product images
+        product.imageUrl,
+        product.image,
+        product.mainImage,
+        product.image_url,
+        ...(product.images && Array.isArray(product.images) ? product.images : [])
+      ];
+      
+      console.log('Image sources to try:', imageSources);
+      
+      for (const imageSource of imageSources) {
+        if (imageSource && typeof imageSource === 'string' && imageSource.trim().length > 0) {
+          const url = constructUrl(imageSource);
+          if (url) {
+            console.log('=== FINAL RESULT: FOUND IMAGE ===', url);
+            return url;
+          }
+        }
+      }
+
+      // 2) product.imageUrl could be string URL, relative path, or JSON array string
+      if (product.imageUrl && typeof product.imageUrl === 'string' && product.imageUrl.trim().length > 0) {
+        const imageUrlStr = product.imageUrl.trim();
+        
+        // Skip empty arrays or null strings
+        if (imageUrlStr === '[]' || imageUrlStr === 'null' || imageUrlStr === '') {
+          // Continue to next fallback
+        } else {
+          try {
+            // Try parsing as JSON array
+            const parsed = JSON.parse(imageUrlStr);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const u = parsed[0];
+              if (typeof u === 'string' && u.trim().length > 0) {
+                const cleanU = u.trim();
+                const url = cleanU.startsWith('http') ? cleanU : `${API_BASE}${cleanU.startsWith('/') ? '' : '/'}${cleanU}`;
+                console.log('=== FINAL RESULT: PARSED IMAGE URL ===', url);
+                return url;
+              }
+            }
+          } catch (e) {
+            // Not JSON: treat as direct URL/path
+            if (imageUrlStr.startsWith('http') || imageUrlStr.includes('/')) {
+              const url = imageUrlStr.startsWith('http') ? imageUrlStr : `${API_BASE}${imageUrlStr.startsWith('/') ? '' : '/'}${imageUrlStr}`;
+              console.log('=== FINAL RESULT: DIRECT IMAGE URL ===', url);
+              return url;
+            }
+          }
+        }
+      }
+
+      // 3) product.images could be array of strings or objects
+      if (product.images) {
+        let firstImage = null;
+        
+        if (Array.isArray(product.images) && product.images.length > 0) {
+          firstImage = product.images[0];
+        } else if (typeof product.images === 'string' && product.images.trim().length > 0) {
+          const imagesStr = product.images.trim();
+          if (imagesStr !== '[]' && imagesStr !== 'null' && imagesStr !== '') {
+            try {
+              // Try to parse as JSON array
+              const parsed = JSON.parse(imagesStr);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                firstImage = parsed[0];
+              }
+            } catch (e) {
+              // If not JSON, treat as direct URL
+              firstImage = imagesStr;
+            }
+          }
+        }
+        
+        if (firstImage) {
+          if (typeof firstImage === 'string' && firstImage.trim().length > 0) {
+            const u = firstImage.trim();
+            const url = u.startsWith('http') ? u : `${API_BASE}${u.startsWith('/') ? '' : '/'}${u}`;
+            console.log('=== FINAL RESULT: PRODUCT IMAGES[0] ===', url);
+            return url;
+          }
+          if (firstImage && typeof firstImage.url === 'string' && firstImage.url.trim().length > 0) {
+            const u = firstImage.url.trim();
+            const url = u.startsWith('http') ? u : `${API_BASE}${u.startsWith('/') ? '' : '/'}${u}`;
+            console.log('=== FINAL RESULT: PRODUCT IMAGES[0].URL ===', url);
+            return url;
+          }
+        }
+      }
+
+      // 4) product.image_url or product.image fallback or item-level image fields
+      const fallbacks = [product.mainImage, product.image_url, product.image, item?.image_url, item?.image, item?.imageUrl];
+      for (const f of fallbacks) {
+        if (typeof f === 'string' && f.trim().length > 0) {
+          const u = f.trim();
+          const url = u.startsWith('http') ? u : `${API_BASE}${u.startsWith('/') ? '' : '/'}${u}`;
+          console.log('=== FINAL RESULT: FALLBACK IMAGE ===', url);
+          return url;
+        }
+      }
+
+      // 5) For guest users, check if item has direct image properties
+      if (item && typeof item === 'object') {
+        const directImageFields = [item.image, item.imageUrl, item.image_url, item.mainImage];
+        for (const f of directImageFields) {
+          if (typeof f === 'string' && f.trim().length > 0) {
+            const u = f.trim();
+            const url = u.startsWith('http') ? u : `${API_BASE}${u.startsWith('/') ? '' : '/'}${u}`;
+            console.log('Using direct item image:', url);
+            return url;
+          }
+        }
+      }
+
+      // 6) Check if the product has a main image field
+      if (product.mainImage) {
+        const u = String(product.mainImage).trim();
+        const url = u.startsWith('http') ? u : `${API_BASE}${u.startsWith('/') ? '' : '/'}${u}`;
+        console.log('Using product.mainImage:', url);
+        return url;
+      }
+
+      // 7) Check if the product has any image field
+      if (product.image) {
+        const u = String(product.image).trim();
+        const url = u.startsWith('http') ? u : `${API_BASE}${u.startsWith('/') ? '' : '/'}${u}`;
+        console.log('Using product.image:', url);
+        return url;
+      }
+
+      // Final fallback: check if the item itself has any image properties
+      if (item && typeof item === 'object') {
+        const allImageFields = Object.keys(item).filter(key => 
+          key.toLowerCase().includes('image') || 
+          key.toLowerCase().includes('img') ||
+          key.toLowerCase().includes('photo') ||
+          key.toLowerCase().includes('picture')
+        );
+        
+        for (const field of allImageFields) {
+          const value = item[field];
+          if (typeof value === 'string' && value.trim().length > 0) {
+            const url = value.startsWith('http') ? value : `${API_BASE}${value.startsWith('/') ? '' : '/'}${value}`;
+            console.log(`Using item.${field}:`, url);
+            return url;
+          }
+        }
+      }
+      
+      console.log('No image found, using placeholder');
+      // Fallback placeholder
+      const placeholderUrl = 'https://placehold.co/60x60?text=No+Image';
+      console.log('=== FINAL RESULT: PLACEHOLDER ===', placeholderUrl);
+      return placeholderUrl;
+    } catch (error) {
+      console.error('Error resolving image:', error);
+      const errorPlaceholder = 'https://placehold.co/60x60?text=Error';
+      console.log('=== FINAL RESULT: ERROR PLACEHOLDER ===', errorPlaceholder);
+      return errorPlaceholder;
+    }
+  };
+
   // Debug logging
   useEffect(() => {
     console.log('=== CartTab Debug Info ===');
     console.log('Cart items count:', cartItems.length);
-    console.log('Cart items:', cartItems);
     console.log('Loading state:', loading);
     console.log('User from cart context:', user);
     console.log('User from auth context:', authUser);
-    console.log('========================');
+    
+    // Debug each cart item's image resolution
+    cartItems.forEach((item, index) => {
+      console.log(`=== Cart Item ${index} ===`);
+      console.log('Item name:', item?.product?.name);
+      console.log('Product imageUrl:', item?.product?.imageUrl);
+      console.log('Product images:', item?.product?.images);
+      console.log('Variant images:', item?.variant?.images);
+      console.log('Resolved image URL:', resolveCartItemImageUrl(item));
+      console.log('========================');
+    });
   }, [cartItems, loading, user, authUser]);
 
   const total = cartItems.reduce((sum, item) => {
@@ -227,23 +421,30 @@ export default function CartTab() {
                 />
               }
             >
+
               {cartItems.map((item, idx) => (
                 <View key={item.id} style={styles.cartRowNormal}>
-                  <TouchableOpacity onPress={() => navigation.navigate('ProductDetail', { product: item.product })}>
+                  <TouchableOpacity onPress={() => navigation.navigate('ProductDetail', { productId: item.productId || item.product?.id, preselectedVariant: item.variant || null })}>
                     <Image 
-                      source={{ 
-                        uri: (item.variant && Array.isArray(item.variant.images) && item.variant.images[0]) 
-                          || item.product.imageUrl 
-                          || (Array.isArray(item.product.images) && item.product.images[0]) 
-                          || 'https://placehold.co/60x60?text=No+Image' 
-                      }} 
+                      source={{ uri: resolveCartItemImageUrl(item) }} 
                       style={styles.cartImageNormal}
                       resizeMode="contain"
+                      onError={(error) => {
+                        console.log('Image load error for item:', item?.product?.name);
+                        console.log('Failed URL:', resolveCartItemImageUrl(item));
+                        console.log('Error details:', error.nativeEvent);
+                      }}
+                      onLoad={() => {
+                        console.log('Image loaded successfully for:', item?.product?.name);
+                        console.log('Loaded URL:', resolveCartItemImageUrl(item));
+                      }}
                     />
                   </TouchableOpacity>
                   <View style={styles.cartDetailsNormal}>
-                    <TouchableOpacity onPress={() => navigation.navigate('ProductDetail', { product: item.product })}>
-                      <Text style={styles.cartNameNormal} numberOfLines={2}>{item.product.name}</Text>
+                    <TouchableOpacity onPress={() => navigation.navigate('ProductDetail', { productId: item.productId || item.product?.id, preselectedVariant: item.variant || null })}>
+                      <Text style={styles.cartNameNormal} numberOfLines={2}>
+                        {item.product?.name || item.name || 'Product'}
+                      </Text>
                     </TouchableOpacity>
                     {(() => {
                       const color = (item.variant && item.variant.color) || (item.product && item.product.selectedColor && item.product.selectedColor.name) || item.product?.color;
@@ -255,7 +456,9 @@ export default function CartTab() {
                         </>
                       );
                     })()}
-                    <Text style={styles.cartPriceNormal}>₹{item.variant ? item.variant.price : item.product.price}</Text>
+                    <Text style={styles.cartPriceNormal}>
+                      ₹{item.variant ? item.variant.price : (item.product?.price || item.price)}
+                    </Text>
                     <View style={styles.cartActionRowNormal}>
                       <View style={styles.cartQtyPillNormal}>
                         <TouchableOpacity onPress={() => {

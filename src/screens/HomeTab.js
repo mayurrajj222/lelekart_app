@@ -7,7 +7,7 @@ import { useWishlist } from '../context/WishlistContext';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext';
 import DealOfTheDay from './DealOfTheDay';
-import Carousel from 'react-native-reanimated-carousel';
+// import Carousel from 'react-native-reanimated-carousel';
 import { Picker } from '@react-native-picker/picker';
 import FullScreenSearch from '../components/FullScreenSearch';
 
@@ -26,9 +26,6 @@ const CHOCOLATE_ACCENT = '#D2691E';
 const MemoizedHomeTabHeader = React.memo(function HomeTabHeader({ onWishlistPress, onCameraPress, user, onProfilePress, search, setSearch, onSearchPress, profileUsername, products, handleSearchChange, showSearchSuggestions, setShowSearchSuggestions, setShowFullScreenSearch }) {
   return (
     <>
-      <View style={styles.logoHeaderWrap}>
-        <Image source={LELE_IMAGE} style={styles.logoImageHeader} />
-      </View>
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
           {showSearchSuggestions ? (
@@ -59,6 +56,9 @@ const MemoizedHomeTabHeader = React.memo(function HomeTabHeader({ onWishlistPres
         <TouchableOpacity style={styles.headerIconBtn} onPress={onWishlistPress}>
           <Icon name="heart-outline" size={28} color="#2874f0" />
         </TouchableOpacity>
+      </View>
+      <View style={styles.logoHeaderWrap}>
+        <Image source={LELE_IMAGE} style={styles.logoImageHeader} />
       </View>
       <TouchableOpacity 
         style={styles.searchBar}
@@ -300,9 +300,35 @@ export default function HomeTab() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('https://www.lelekart.com/api/products?page=1&limit=300');
+      const res = await fetch(`${API_BASE}/api/products?page=1&limit=300`);
       const data = await res.json();
-      setProducts(Array.isArray(data.products) ? data.products : []);
+      const products = Array.isArray(data.products) ? data.products : [];
+      
+      // Normalize seller names for all products
+      const normalizedProducts = products.map(product => {
+        if (!product.sellerName) {
+          const possibleSellerName = product.sellerUsername || 
+                                   product.seller?.username || 
+                                   product.seller?.name || 
+                                   product.seller_name ||
+                                   product.seller_username ||
+                                   product.store_name ||
+                                   product.storeName ||
+                                   product.shop_name ||
+                                   product.shopName ||
+                                   product.brand ||
+                                   product.brandName ||
+                                   product.vendor ||
+                                   product.vendorName;
+          
+          if (possibleSellerName) {
+            return { ...product, sellerName: possibleSellerName };
+          }
+        }
+        return product;
+      });
+      
+      setProducts(normalizedProducts);
       setHasMore(false); // No further fetches for price sections
     } catch (error) {
       setError(error.message || 'Failed to fetch products');
@@ -399,6 +425,28 @@ export default function HomeTab() {
       const res = await fetch(`${API_BASE}/api/products/${dealOfTheDay.productId}`);
       if (!res.ok) throw new Error('Failed to fetch product');
       const product = await res.json();
+      
+      // Normalize seller name for deal product
+      if (!product.sellerName) {
+        const possibleSellerName = product.sellerUsername || 
+                                 product.seller?.username || 
+                                 product.seller?.name || 
+                                 product.seller_name ||
+                                 product.seller_username ||
+                                 product.store_name ||
+                                 product.storeName ||
+                                 product.shop_name ||
+                                 product.shopName ||
+                                 product.brand ||
+                                 product.brandName ||
+                                 product.vendor ||
+                                 product.vendorName;
+        
+        if (possibleSellerName) {
+          product.sellerName = possibleSellerName;
+        }
+      }
+      
       addToCart(product, 1);
       Alert.alert('Success', 'Deal of the Day added to cart!');
     } catch (e) {
@@ -420,21 +468,18 @@ export default function HomeTab() {
     <>
       {/* Banner Section - Hide during search */}
       {!searching && !showSearchSuggestions && (
-        <View style={{ height: 220, marginTop: 10, marginHorizontal: 0, alignItems: 'center' }}>
+        <View style={{ height: 180, marginTop: 10, marginHorizontal: 16, alignItems: 'center' }}>
           {loadingBanner ? (
-            <Text style={{ color: '#fff', fontSize: 18, textAlign: 'center', marginTop: 60 }}>Loading banners...</Text>
+            <Text style={{ color: '#666', fontSize: 16, textAlign: 'center', marginTop: 70 }}>Loading banners...</Text>
           ) : banners.length > 0 ? (
-            <Carousel
-              width={width * 0.85}
-              height={200}
-              data={banners}
-              autoPlay
-              autoPlayInterval={4000}
-              loop
-              style={{ alignSelf: 'center' }}
-              panGestureHandlerProps={{ activeOffsetX: [-10, 10] }}
-              renderItem={({ item }) => (
-                <View style={styles.webBannerContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ width: '100%' }}
+              contentContainerStyle={{ paddingHorizontal: 0 }}
+            >
+              {banners.map((item, index) => (
+                <View key={index} style={[styles.webBannerContainer, index === 0 && { marginLeft: 0 }]}>
                   <View style={styles.webBannerLeft}>
                     {item.badgeText ? (
                       <View style={styles.webBannerBadge}>
@@ -481,8 +526,8 @@ export default function HomeTab() {
                     <Image source={{ uri: item.imageUrl }} style={styles.webBannerImage} />
                   </View>
                 </View>
-              )}
-            />
+              ))}
+            </ScrollView>
           ) : (
             <View style={styles.banner}>
               <Image source={{ uri: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80' }} style={styles.bannerImage} />
@@ -546,6 +591,12 @@ export default function HomeTab() {
                         />
                       </TouchableOpacity>
                       <Text style={styles.featuredProductName} numberOfLines={2}>{item.name}</Text>
+                      {/* Seller Name */}
+                      {(item.sellerName || item.seller) && (
+                        <Text style={styles.featuredSellerName} numberOfLines={1}>
+                          by {item.sellerName || item.seller}
+                        </Text>
+                      )}
                       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
                         <Text style={styles.originalPrice}>₹{originalPrice}</Text>
                         <Text style={styles.featuredProductPrice}>  ₹{realPrice}</Text>
@@ -605,6 +656,12 @@ export default function HomeTab() {
                             />
                           </TouchableOpacity>
                           <Text style={styles.featuredProductName} numberOfLines={2}>{item.name}</Text>
+                          {/* Seller Name */}
+                          {(item.sellerName || item.seller) && (
+                            <Text style={styles.featuredSellerName} numberOfLines={1}>
+                              by {item.sellerName || item.seller}
+                            </Text>
+                          )}
                           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
                             <Text style={styles.originalPrice}>₹{originalPrice}</Text>
                             <Text style={styles.featuredProductPrice}>  ₹{realPrice}</Text>
@@ -806,6 +863,12 @@ export default function HomeTab() {
                         }}
                       />
           <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
+          {/* Seller Name */}
+          {(item.sellerName || item.seller) && (
+            <Text style={styles.sellerName} numberOfLines={1}>
+              by {item.sellerName || item.seller}
+            </Text>
+          )}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
             <Text style={styles.originalPrice}>₹{originalPrice}</Text>
             <Text style={styles.productPrice}>  ₹{realPrice}</Text>
@@ -996,6 +1059,12 @@ export default function HomeTab() {
                       resizeMode="contain"
                     />
                     <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
+                    {/* Seller Name */}
+                    {(item.sellerName || item.seller) && (
+                      <Text style={styles.sellerName} numberOfLines={1}>
+                        by {item.sellerName || item.seller}
+                      </Text>
+                    )}
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
                       <Text style={styles.originalPrice}>₹{originalPrice}</Text>
                       <Text style={styles.productPrice}>  ₹{realPrice}</Text>
@@ -1037,7 +1106,7 @@ const styles = StyleSheet.create({
   headerSafeArea: { backgroundColor: 'transparent', marginTop: 38 },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 18,
     marginBottom: 8,
@@ -1056,6 +1125,9 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    justifyContent: 'flex-start',
+    marginTop: 36,
   },
   profileAvatar: {
     width: 38,
@@ -1080,6 +1152,8 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 20,
     marginLeft: 8,
+    alignSelf: 'center',
+    marginTop: 36,
   },
   backButton: {
     padding: 6,
@@ -1194,24 +1268,25 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   banner: {
-    height: 200,
-    borderRadius: 18,
+    height: 160,
+    borderRadius: 12,
     overflow: 'hidden',
     position: 'relative',
-    marginHorizontal: 8,
+    marginHorizontal: 0,
     marginVertical: 0,
     backgroundColor: '#fff',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+    width: '100%',
   },
   bannerImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'contain',
-    borderRadius: 18,
+    resizeMode: 'cover',
+    borderRadius: 12,
   },
   // bannerOverlay removed
   bannerText: {
@@ -1397,6 +1472,22 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     paddingHorizontal: 4,
   },
+  sellerName: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 4,
+    paddingHorizontal: 4,
+    fontStyle: 'italic',
+  },
+  featuredSellerName: {
+    fontSize: 11,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 2,
+    paddingHorizontal: 4,
+    fontStyle: 'italic',
+  },
   productPrice: {
     fontSize: 15,
     fontWeight: '600',
@@ -1469,21 +1560,23 @@ const styles = StyleSheet.create({
   },
   webBannerContainer: {
     flexDirection: 'row',
-    height: 200,
-    width: '100%',
+    height: 160,
+    width: Dimensions.get('window').width - 32,
     backgroundColor: CHOCOLATE,
-    borderRadius: 18,
+    borderRadius: 12,
     overflow: 'hidden',
     alignItems: 'center',
     paddingHorizontal: 0,
     marginVertical: 0,
+    marginRight: 16,
   },
   webBannerLeft: {
     flex: 1.2,
     height: '100%',
     justifyContent: 'center',
-    paddingLeft: 18,
+    paddingLeft: 16,
     paddingRight: 8,
+    paddingVertical: 12,
     backgroundColor: CHOCOLATE,
   },
   webBannerBadge: {
@@ -1502,38 +1595,44 @@ const styles = StyleSheet.create({
   webBannerTitle: {
     color: '#fff',
     fontWeight: 'bold',
-    fontSize: 24,
+    fontSize: 20,
     marginBottom: 4,
+    lineHeight: 24,
+    flexWrap: 'wrap',
   },
   webBannerSubtitle: {
     color: '#f3e5d0',
-    fontSize: 16,
-    marginBottom: 8,
+    fontSize: 14,
+    marginBottom: 6,
+    lineHeight: 18,
+    flexWrap: 'wrap',
   },
   webBannerDescription: {
     color: '#f3e5d0',
-    fontSize: 14,
-    marginBottom: 8,
+    fontSize: 12,
+    marginBottom: 6,
+    lineHeight: 16,
+    flexWrap: 'wrap',
   },
   webBannerButton: {
     backgroundColor: CHOCOLATE_ACCENT,
-    borderRadius: 4,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
+    borderRadius: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     alignSelf: 'flex-start',
-    marginTop: 4,
+    marginTop: 6,
   },
   webBannerButtonText: {
     color: '#fff',
     fontWeight: 'bold',
-    fontSize: 15,
+    fontSize: 13,
   },
   webBannerRight: {
     flex: 1.5,
     height: '100%',
     backgroundColor: CHOCOLATE_LIGHT,
-    borderTopRightRadius: 18,
-    borderBottomRightRadius: 18,
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
     overflow: 'hidden',
   },
   webBannerImage: {

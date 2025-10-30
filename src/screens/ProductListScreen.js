@@ -20,7 +20,33 @@ export default function ProductListScreen({ route, navigation }) {
     fetch(`${API_BASE}/api/products?category=${encodeURIComponent(category)}&approved=true&limit=300`)
       .then(res => res.json())
       .then(data => {
-        setProducts(Array.isArray(data) ? data : data.products || []);
+        const products = Array.isArray(data) ? data : data.products || [];
+        
+        // Normalize seller names for all products
+        const normalizedProducts = products.map(product => {
+          if (!product.sellerName) {
+            const possibleSellerName = product.sellerUsername || 
+                                     product.seller?.username || 
+                                     product.seller?.name || 
+                                     product.seller_name ||
+                                     product.seller_username ||
+                                     product.store_name ||
+                                     product.storeName ||
+                                     product.shop_name ||
+                                     product.shopName ||
+                                     product.brand ||
+                                     product.brandName ||
+                                     product.vendor ||
+                                     product.vendorName;
+            
+            if (possibleSellerName) {
+              return { ...product, sellerName: possibleSellerName };
+            }
+          }
+          return product;
+        });
+        
+        setProducts(normalizedProducts);
         setLoading(false);
       })
       .catch(err => {
@@ -95,6 +121,13 @@ export default function ProductListScreen({ route, navigation }) {
         
         <Text style={styles.name}>{item.name}</Text>
         
+        {/* Seller Name */}
+        {(item.sellerName || item.seller) && (
+          <Text style={styles.sellerName} numberOfLines={1}>
+            by {item.sellerName || item.seller}
+          </Text>
+        )}
+        
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
           <Text style={[styles.price, { textDecorationLine: 'line-through', color: '#888', marginRight: 6 }]}>
             ₹{originalPrice}
@@ -166,12 +199,85 @@ export default function ProductListScreen({ route, navigation }) {
         <Text style={{ color: 'red', textAlign: 'center', marginTop: 32 }}>{error}</Text>
       ) : (
         <FlatList
-          data={products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))}
+          data={(() => {
+            if (!search.trim()) return products;
+            
+            const query = search.toLowerCase().trim();
+            const exactMatches = [];
+            const partialMatches = [];
+            const fuzzyMatches = [];
+            const broadMatches = [];
+            
+            products.forEach(product => {
+              // Get all searchable text fields
+              const name = (product.name || '').toLowerCase();
+              const category = (product.category || '').toLowerCase();
+              const description = (product.description || '').toLowerCase();
+              const seller = (product.sellerName || product.seller?.name || '').toLowerCase();
+              const brand = (product.brand || '').toLowerCase();
+              const tags = (product.tags || '').toLowerCase();
+              
+              // Create a combined search string
+              const allText = `${name} ${category} ${description} ${seller} ${brand} ${tags}`.toLowerCase();
+              
+              // Exact name match
+              if (name.includes(query)) {
+                exactMatches.push(product);
+              }
+              // Category or brand match
+              else if (category.includes(query) || brand.includes(query)) {
+                partialMatches.push(product);
+              }
+              // Description, seller, or tags match
+              else if (description.includes(query) || seller.includes(query) || tags.includes(query)) {
+                fuzzyMatches.push(product);
+              }
+              // Broad text search
+              else if (allText.includes(query)) {
+                broadMatches.push(product);
+              }
+              // Enhanced word matching
+              else {
+                const queryWords = query.split(/\s+/).filter(word => word.length > 1);
+                const allWords = allText.split(/\s+/);
+                
+                const hasWordMatch = queryWords.some(queryWord => 
+                  allWords.some(textWord => {
+                    // Exact word match
+                    if (textWord === queryWord) return true;
+                    // Word contains query word
+                    if (textWord.includes(queryWord)) return true;
+                    // Query word contains text word
+                    if (queryWord.includes(textWord) && textWord.length > 2) return true;
+                    // Character overlap for fuzzy matching
+                    if (queryWord.length > 3 && textWord.length > 3) {
+                      const overlap = [...queryWord].filter(char => textWord.includes(char)).length;
+                      return overlap >= Math.min(queryWord.length * 0.6, textWord.length * 0.6);
+                    }
+                    return false;
+                  })
+                );
+                
+                if (hasWordMatch) {
+                  broadMatches.push(product);
+                }
+              }
+            });
+            
+            const results = [...exactMatches, ...partialMatches, ...fuzzyMatches, ...broadMatches];
+            
+            // If no matches found, show some random products as fallback
+            if (results.length === 0) {
+              return products.slice(0, 8);
+            }
+            
+            return results;
+          })()}
           keyExtractor={item => item.id}
           renderItem={renderItem}
           numColumns={2}
           contentContainerStyle={styles.list}
-          ListEmptyComponent={<Text style={styles.emptyMsg}>No products found.</Text>}
+          ListEmptyComponent={<Text style={styles.emptyMsg}>Showing related products</Text>}
         />
       )}
     </SafeAreaView>
@@ -230,6 +336,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     textAlign: 'center',
   },
+  sellerName: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 4,
+    fontStyle: 'italic',
+  },
   price: {
     fontSize: 15,
     color: '#43a047',
@@ -261,7 +374,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 10,
     fontSize: 16,
-    color: '#222'
+    color: '#000'
   },
   emptyMsg: {
     textAlign: 'center',

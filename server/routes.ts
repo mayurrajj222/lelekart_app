@@ -9,6 +9,268 @@ import {
   getRazorpayConfigStatus,
 } from "./utils/razorpay";
 
+// Invoice generation functions
+function generateInvoiceHtml(invoiceData: any): string {
+  const template = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Tax Invoice</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #333;
+      margin: 0;
+      padding: 0;
+    }
+    .invoice-container {
+      max-width: 800px;
+      margin: 20px auto;
+      padding: 20px;
+      border: 1px solid #ccc;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .invoice-title {
+      text-align: right;
+    }
+    .title {
+      font-size: 20px;
+      font-weight: bold;
+    }
+    .original-copy {
+      font-size: 12px;
+    }
+    .bill-to, .ship-to {
+      margin-bottom: 20px;
+    }
+    .bill-to-header, .ship-to-header {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .customer-name {
+      font-weight: bold;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    .order-details-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .order-detail-item {
+      flex: 1;
+    }
+    .order-label {
+      font-weight: normal;
+    }
+    .order-value {
+      font-weight: normal;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    table th, table td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    table th {
+      background-color: #f2f2f2;
+      font-weight: normal;
+    }
+    .text-right {
+      text-align: right;
+    }
+    .terms {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="invoice-container">
+    <div class="header">
+      <div class="bill-to">
+        <div class="bill-to-header">BILL TO:</div>
+        <div class="customer-name">${invoiceData.user.name}</div>
+        ${invoiceData.billingAddress ? `
+          <div>${invoiceData.billingAddress.address}</div>
+          <div>${invoiceData.billingAddress.city}, ${invoiceData.billingAddress.state} ${invoiceData.billingAddress.pincode}</div>
+          <div>${invoiceData.billingAddress.country}</div>
+          <div>Place of Supply : ${invoiceData.billingAddress.state}</div>
+        ` : `
+          <div>${invoiceData.shippingAddress?.address || 'N/A'}</div>
+          <div>${invoiceData.shippingAddress?.city || 'N/A'}, ${invoiceData.shippingAddress?.state || 'N/A'} ${invoiceData.shippingAddress?.pincode || 'N/A'}</div>
+          <div>${invoiceData.shippingAddress?.country || 'India'}</div>
+          <div>Place of Supply : ${invoiceData.shippingAddress?.state || 'N/A'}</div>
+        `}
+      </div>
+
+      <div class="invoice-title">
+        <div class="title">Tax Invoice</div>
+        <div class="original-copy">Original For Recipient</div>
+      </div>
+    </div>
+
+    <div class="order-details-row">
+      <div class="order-detail-item">
+        <div class="order-label">Order Number</div>
+        <div class="order-value">${invoiceData.order.id}</div>
+      </div>
+      <div class="order-detail-item" style="text-align: right;">
+        <div class="order-label">Invoice Number</div>
+        <div class="order-value">${invoiceData.invoiceNumber}</div>
+      </div>
+    </div>
+
+    <div class="order-details-row">
+      <div class="order-detail-item">
+        <div class="order-label">Order Date</div>
+        <div class="order-value">${new Date(invoiceData.order.date).toLocaleDateString('en-IN')}</div>
+      </div>
+      <div class="order-detail-item" style="text-align: right;">
+        <div class="order-label">Invoice Date</div>
+        <div class="order-value">${new Date(invoiceData.order.date).toLocaleDateString('en-IN')}</div>
+      </div>
+    </div>
+
+    <div class="ship-to">
+      <div class="ship-to-header">SHIP TO:</div>
+      <div class="customer-name">${invoiceData.user.name}</div>
+      ${invoiceData.shippingAddress ? `
+        <div>${invoiceData.shippingAddress.address}</div>
+        <div>${invoiceData.shippingAddress.city}, ${invoiceData.shippingAddress.state} ${invoiceData.shippingAddress.pincode}</div>
+        <div>${invoiceData.shippingAddress.country}</div>
+      ` : ''}
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>SN.</th>
+          <th>Description</th>
+          <th>HSN</th>
+          <th>Qty.</th>
+          <th>Gross Amount</th>
+          <th>Discount</th>
+          <th>Taxable Value</th>
+          <th>Taxes</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${invoiceData.items.map((item: any, index: number) => `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${item.product.name}</td>
+          <td>${item.product.hsn}</td>
+          <td>${item.quantity}</td>
+          <td class="text-right">Rs ${item.price}</td>
+          <td class="text-right">Rs ${item.discount || 0}</td>
+          <td class="text-right">Rs ${item.taxableValue}</td>
+          <td class="text-right">
+            ${invoiceData.isSameState ? `
+              CGST @9% :Rs.${item.cgstAmount}<br>
+              SGST @9% :Rs.${item.sgstAmount}
+            ` : `
+              IGST @18% :Rs.${item.igstAmount}
+            `}
+          </td>
+          <td class="text-right">Rs ${item.price * item.quantity}</td>
+        </tr>
+        `).join('')}
+        <tr>
+          <td colspan="7" class="text-right">Total</td>
+          <td class="text-right">Rs.0</td>
+          <td class="text-right">Rs.${invoiceData.order.total}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="terms">
+      <div><strong>Terms & Conditions:</strong></div>
+      <div>Sold by: LeLeKart</div>
+      <div>This is a computer generated invoice and does not require signature</div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  return template;
+}
+
+async function generateInvoicePdf(invoiceData: any): Promise<Buffer> {
+  // For now, return a simple HTML-based PDF
+  // In production, you might want to use a proper PDF library like puppeteer or html-pdf
+  const html = generateInvoiceHtml(invoiceData);
+  
+  // Convert HTML to PDF using a simple approach
+  // This is a placeholder - in production, use a proper PDF library
+  const pdfContent = `%PDF-1.4
+1 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+>>
+endobj
+
+2 0 obj
+<<
+/Type /Pages
+/Kids [3 0 R]
+/Count 1
+>>
+endobj
+
+3 0 obj
+<<
+/Type /Page
+/Parent 2 0 R
+/MediaBox [0 0 612 792]
+/Contents 4 0 R
+>>
+endobj
+
+4 0 obj
+<<
+/Length 44
+>>
+stream
+BT
+/F1 12 Tf
+72 720 Td
+(Invoice for Order #${invoiceData.order.id}) Tj
+ET
+endstream
+endobj
+
+xref
+0 5
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000204 00000 n 
+trailer
+<<
+/Size 5
+/Root 1 0 R
+>>
+startxref
+364
+%%EOF`;
+
+  return Buffer.from(pdfContent, 'utf8');
+}
+
 export function registerUserProfileRoute(app: Express) {
   app.get("/api/user", async (req: Request, res: Response) => {
     // @ts-ignore: isAuthenticated and user are set by auth middleware
@@ -1431,6 +1693,102 @@ export function registerUserProfileRoute(app: Express) {
   });
 
 
+
+  // Invoice generation endpoint
+  app.get("/api/orders/:id/invoice", async (req: Request, res: Response) => {
+    // Authentication check
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const orderId = parseInt(req.params.id);
+      const format = req.query.format || "pdf"; // 'pdf' or 'html', default to pdf
+
+      console.log(`Generating invoice for order ${orderId}, format: ${format}`);
+
+      // Check if the current user has access to this order
+      const order = await storage.getOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // Access control checks
+      const isAdmin = req.user.role === "admin";
+      const isBuyer = order.userId === req.user.id;
+      const isSeller =
+        req.user.role === "seller" &&
+        (await storage.orderHasSellerProducts(orderId, req.user.id));
+
+      if (!isAdmin && !isBuyer && !isSeller) {
+        return res
+          .status(403)
+          .json({ error: "Not authorized to access this order" });
+      }
+
+      // Get the order details
+      const orderItems = await storage.getOrderItems(orderId);
+      if (!orderItems || orderItems.length === 0) {
+        return res.status(404).json({ error: "No items found for this order" });
+      }
+
+      // Get the user (buyer) details
+      const user = await storage.getUser(order.userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Get shipping details
+      let shippingDetails = order.shippingDetails;
+      if (typeof shippingDetails === 'string') {
+        try {
+          shippingDetails = JSON.parse(shippingDetails);
+        } catch {
+          shippingDetails = {};
+        }
+      }
+
+      // Build the invoice data object
+      const invoiceData = {
+        order: {
+          id: order.id,
+          date: order.date,
+          total: order.total,
+          status: order.status
+        },
+        user: {
+          name: user.name || 'N/A',
+          email: user.email || 'N/A',
+          phone: user.phone || 'N/A'
+        },
+        shippingAddress: shippingDetails,
+        items: orderItems.map(item => ({
+          name: item.product?.name || 'N/A',
+          quantity: item.quantity,
+          price: item.price,
+          total: item.price * item.quantity
+        })),
+        invoiceNumber: `INV-${order.id}`,
+        invoiceDate: new Date().toLocaleDateString('en-IN')
+      };
+
+      // Handle format parameter properly
+      if (format === 'html') {
+        const html = generateInvoiceHtml(invoiceData);
+        res.setHeader('Content-Type', 'text/html');
+        res.setHeader('Content-Disposition', `inline; filename="Invoice-${orderId}.html"`);
+        res.send(html);
+      } else {
+        // For PDF format, return HTML for now since PDF generation is not fully implemented
+        // TODO: Implement proper PDF generation with html-pdf or puppeteer
+        const html = generateInvoiceHtml(invoiceData);
+        res.setHeader('Content-Type', 'text/html');
+        res.setHeader('Content-Disposition', `inline; filename="Invoice-${orderId}.html"`);
+        res.send(html);
+      }
+    } catch (error) {
+      console.error(`Error generating invoice:`, error);
+      res.status(500).json({ error: "Failed to generate invoice" });
+    }
+  });
 
   // Fallback for all other GET requests
   app.get("*", (req: Request, res: Response) => {

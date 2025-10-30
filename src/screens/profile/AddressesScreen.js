@@ -169,7 +169,7 @@ export default function AddressesScreen() {
     if (!editForm.city.trim()) errors.city = 'City is required';
     if (!editForm.state.trim()) errors.state = 'State is required';
     if (!/^\d{6}$/.test(editForm.pincode)) errors.pincode = 'Enter a valid 6-digit pincode';
-    if (!/^\d{10}$/.test(editForm.phone)) errors.phone = 'Enter a valid 10-digit phone number';
+    if (!/^[6789][0-9]{9}$/.test(editForm.phone)) errors.phone = 'Phone number must start with 6, 7, 8, or 9 and be 10 digits';
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
     setSaving(true);
@@ -272,7 +272,7 @@ export default function AddressesScreen() {
     if (!addForm.city.trim()) errors.city = 'City is required';
     if (!addForm.state.trim()) errors.state = 'State is required';
     if (!/^\d{6}$/.test(addForm.pincode)) errors.pincode = 'Enter a valid 6-digit pincode';
-    if (!/^\d{10}$/.test(addForm.phone)) errors.phone = 'Enter a valid 10-digit phone number';
+    if (!/^[6789][0-9]{9}$/.test(addForm.phone)) errors.phone = 'Phone number must start with 6, 7, 8, or 9 and be 10 digits';
     setAddFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
     setAddSaving(true);
@@ -318,21 +318,12 @@ export default function AddressesScreen() {
       </View>
     );
   }
-  if (!addresses.length) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.noDataText}>No addresses found.</Text>
-        <Text style={styles.noDataSubtext}>Add your first address to get started.</Text>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      {/* Add Address Button */}
+      {/* Add Address Button - Always visible */}
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end', padding: 16 }}>
         <TouchableOpacity
-          style={{ backgroundColor: '#2874f0', paddingVertical: 10, paddingHorizontal: 18, borderRadius: 8 }}
+          style={{ backgroundColor: '#2874f0', paddingVertical: 10, paddingHorizontal: 18, borderRadius: 8, flexDirection: 'row', alignItems: 'center' }}
           onPress={() => {
             if (addresses.length >= 5) {
               Alert.alert('Limit Reached', 'You can only add up to 5 addresses.');
@@ -345,6 +336,15 @@ export default function AddressesScreen() {
           <Text style={{ color: '#fff', fontWeight: 'bold', marginLeft: 8 }}>Add Address</Text>
         </TouchableOpacity>
       </View>
+
+      {!addresses.length ? (
+        <View style={styles.center}>
+          <Icon name="map-marker-outline" size={64} color="#ccc" />
+          <Text style={styles.noDataText}>No addresses found.</Text>
+          <Text style={styles.noDataSubtext}>Add your first address to get started.</Text>
+          <Text style={styles.noDataSubtext}>Use the "Add Address" button above.</Text>
+        </View>
+      ) : (
       <FlatList
         style={styles.list}
         data={addresses}
@@ -428,6 +428,7 @@ export default function AddressesScreen() {
           </View>
         )}
       />
+      )}
 
       {/* Edit Address Modal */}
       <Modal
@@ -576,7 +577,7 @@ export default function AddressesScreen() {
                         setFieldErrors(prev => ({ ...prev, phone: '' }));
                       }
                     }}
-                    placeholder="Phone"
+                    placeholder="Phone (must start with 6, 7, 8, or 9)"
                     keyboardType="phone-pad"
                     maxLength={10}
                   />
@@ -748,7 +749,7 @@ export default function AddressesScreen() {
                         setAddFieldErrors(prev => ({ ...prev, phone: '' }));
                       }
                     }}
-                    placeholder="Phone"
+                    placeholder="Phone (must start with 6, 7, 8, or 9)"
                     keyboardType="phone-pad"
                     maxLength={10}
                   />

@@ -29,6 +29,9 @@ export default function WishlistScreen() {
   const [error, setError] = useState(null);
   const [removingItem, setRemovingItem] = useState(null);
   const [productStockInfo, setProductStockInfo] = useState({});
+  const [notifiedItems, setNotifiedItems] = useState({});
+  const [notificationLoading, setNotificationLoading] = useState({});
+  const [addingToCart, setAddingToCart] = useState({});
 
   const onRefresh = () => {
     fetchWishlist();
@@ -96,6 +99,12 @@ export default function WishlistScreen() {
     }
   }, [user]);
 
+  // Reset addingToCart state when cartItems changes
+  useEffect(() => {
+    console.log('Cart items changed, resetting addingToCart state');
+    setAddingToCart({});
+  }, [cartItems]);
+
   // Fetch stock information when wishlist items change
   useEffect(() => {
     if (wishlistItems.length > 0) {
@@ -138,10 +147,45 @@ export default function WishlistScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>My Wishlist</Text>
-          <Text style={styles.subtitle}>
-            {wishlistItems.length} {wishlistItems.length === 1 ? 'item' : 'items'}
-          </Text>
+          <View style={styles.headerInfo}>
+            <Text style={styles.subtitle}>
+              {wishlistItems.length} {wishlistItems.length === 1 ? 'item' : 'items'}
+            </Text>
+            {Object.keys(notifiedItems).length > 0 && (
+              <View style={styles.notificationBadge}>
+                <Icon name="bell" size={14} color="#ff9800" />
+                <Text style={styles.notificationCount}>
+                  {Object.keys(notifiedItems).length} notification{Object.keys(notifiedItems).length !== 1 ? 's' : ''}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
+
+        {/* Out of Stock Summary */}
+        {(() => {
+          const outOfStockCount = wishlistItems.filter(item => {
+            const productId = item.productId || item.product?.id;
+            const latestStockInfo = productStockInfo[productId];
+            const currentStock = latestStockInfo?.stock ?? item.product?.stock ?? 0;
+            return currentStock <= 0;
+          }).length;
+          
+          if (outOfStockCount > 0) {
+            return (
+              <View style={styles.outOfStockSummary}>
+                <Icon name="alert-circle" size={20} color="#f44336" />
+                <Text style={styles.outOfStockSummaryText}>
+                  {outOfStockCount} item{outOfStockCount !== 1 ? 's' : ''} out of stock
+                </Text>
+                <Text style={styles.outOfStockSummarySubtext}>
+                  Set notifications to get alerts when they're back in stock
+                </Text>
+              </View>
+            );
+          }
+          return null;
+        })()}
 
         {/* Wishlist Items */}
         {wishlistItems.length > 0 ? (
@@ -166,14 +210,22 @@ export default function WishlistScreen() {
               const inStock = currentStock > 0;
               
               // Check if the item is already in the cart
-              const inCart = cartItems.some(cartItem => cartItem.productId === productId);
+              const inCart = cartItems.some(cartItem => {
+                // Handle different cart item structures
+                const cartProductId = cartItem.productId || cartItem.product?.id || cartItem.id;
+                const match = cartProductId === productId || String(cartProductId) === String(productId);
+                return match;
+              }) || addingToCart[productId];
 
-              console.log('Wishlist item stock info:', {
+              console.log('Wishlist item info:', {
                 productId,
                 itemStock: item.product?.stock,
                 latestStock: latestStockInfo?.stock,
                 currentStock,
-                inStock
+                inStock,
+                inCart,
+                cartItemsCount: cartItems.length,
+                cartProductIds: cartItems.map(ci => ci.productId || ci.product?.id || ci.id)
               });
               return (
                 <View key={item.id || index} style={[styles.wishlistItem, !inStock && styles.outOfStockItem]}>
@@ -214,38 +266,137 @@ export default function WishlistScreen() {
                     </View>
                   </TouchableOpacity>
                   <View style={styles.actionButtons}>
-                    <TouchableOpacity
-                      style={[styles.actionButton, inCart ? styles.goToCartButton : styles.addToCartButton]}
-                      onPress={() => {
-                        if (inCart) {
-                          // Navigate to cart if item is already there
-                          navigation.navigate('MainTabs', { screen: 'Cart' });
-                        } else {
-                          // Add to cart if not already there
-                          const updatedProduct = {
-                            ...item.product,
-                            stock: currentStock,
-                            price: currentPrice,
-                            mrp: currentMrp
-                          };
-                          addToCart(updatedProduct, 1)
-                            .then(() => {
-                              Alert.alert('Success', 'Item added to cart');
-                            })
-                            .catch((err) => {
-                              Alert.alert('Error', err?.message || 'Failed to add item to cart');
+                    {inStock && (
+                      <TouchableOpacity
+                        style={[styles.actionButton, inCart ? styles.goToCartButton : styles.addToCartButton]}
+                        onPress={() => {
+                          if (inCart) {
+                            // Navigate to cart if item is already there
+                            navigation.navigate('MainTabs', { screen: 'Cart' });
+                          } else {
+                            // Add to cart if not already there
+                            setAddingToCart(prev => ({ ...prev, [productId]: true }));
+                            const updatedProduct = {
+                              ...item.product,
+                              stock: currentStock,
+                              price: currentPrice,
+                              mrp: currentMrp
+                            };
+                            addToCart(updatedProduct, 1)
+                              .then(() => {
+                                // Small delay to ensure cart state is updated
+                                setTimeout(() => {
+                                  setAddingToCart(prev => ({ ...prev, [productId]: false }));
+                                }, 100);
+                                Alert.alert('Success', 'Item added to cart');
+                              })
+                              .catch((err) => {
+                                setAddingToCart(prev => ({ ...prev, [productId]: false }));
+                                Alert.alert('Error', err?.message || 'Failed to add item to cart');
+                              });
+                          }
+                        }}
+                        disabled={!inStock || addingToCart[productId]}
+                      >
+                        <Icon name={inCart ? "cart-outline" : (addingToCart[productId] ? "loading" : "cart-plus")} size={20} color="#fff" />
+                        <Text style={styles.actionButtonText}>
+                          {inCart ? 'Go to Cart' : (addingToCart[productId] ? 'Adding...' : 'Add to Cart')}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    {!inStock && (
+                      <TouchableOpacity
+                        style={[
+                          styles.actionButton, 
+                          notifiedItems[item.productId || item.product?.id] 
+                            ? styles.notifiedButton 
+                            : styles.notifyButton
+                        ]}
+                        onPress={() => {
+                          // Check if user is logged in
+                          if (!user) {
+                            Alert.alert(
+                              'Login Required',
+                              'Please login to get notified when products are back in stock.',
+                              [
+                                { text: 'Cancel', style: 'cancel' },
+                                { 
+                                  text: 'Login', 
+                                  onPress: () => {
+                                    // Use setTimeout to ensure alert is dismissed before navigation
+                                    setTimeout(() => {
+                                      navigation.navigate('Account');
+                                    }, 100);
+                                  }
+                                }
+                              ]
+                            );
+                            return;
+                          }
+                          
+                          const productId = item.productId || item.product?.id;
+                          const productName = item.product?.name || 'this product';
+                          
+                          if (notifiedItems[productId]) {
+                            // Remove notification
+                            setNotificationLoading(prev => ({ ...prev, [productId]: true }));
+                            setNotifiedItems(prev => {
+                              const newState = { ...prev };
+                              delete newState[productId];
+                              return newState;
                             });
-                        }
-                      }}
-                      disabled={!inStock}
-                    >
-                      <Icon name={inCart ? "cart-outline" : "cart-plus"} size={20} color="#fff" />
-                      <Text style={styles.actionButtonText}>
-                        {inCart ? 'Go to Cart' : 'Add to Cart'}
-                      </Text>
-                    </TouchableOpacity>
+                            Alert.alert(
+                              'Notification Removed', 
+                              `You will no longer be notified when "${productName}" comes back in stock.`,
+                              [{ text: 'OK' }]
+                            );
+                            setNotificationLoading(prev => ({ ...prev, [productId]: false }));
+                          } else {
+                            // Add notification
+                            setNotificationLoading(prev => ({ ...prev, [productId]: true }));
+                            setNotifiedItems(prev => ({
+                              ...prev,
+                              [productId]: true
+                            }));
+                            Alert.alert(
+                              'Notification Set!', 
+                              `You will be notified when "${productName}" comes back in stock. We'll send you a push notification.`,
+                              [{ text: 'Great!' }]
+                            );
+                            setNotificationLoading(prev => ({ ...prev, [productId]: false }));
+                          }
+                        }}
+                        disabled={notificationLoading[item.productId || item.product?.id]}
+                      >
+                        {notificationLoading[item.productId || item.product?.id] ? (
+                          <ActivityIndicator size="small" color={notifiedItems[item.productId || item.product?.id] ? "#fff" : "#ff9800"} />
+                        ) : (
+                          <>
+                            <Icon 
+                              name={notifiedItems[item.productId || item.product?.id] ? "bell" : "bell-outline"} 
+                              size={20} 
+                              color={notifiedItems[item.productId || item.product?.id] ? "#fff" : "#ff9800"} 
+                            />
+                            <Text style={[
+                              styles.actionButtonText,
+                              notifiedItems[item.productId || item.product?.id] 
+                                ? styles.notifiedButtonText 
+                                : styles.notifyButtonText
+                            ]}>
+                              {notifiedItems[item.productId || item.product?.id] ? 'Notified' : 'Notify Me'}
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                    
+                    {/* Remove button - always show but adjust style based on stock */}
                     <TouchableOpacity
-                      style={[styles.actionButton, styles.removeButton]}
+                      style={[
+                        styles.actionButton, 
+                        styles.removeButton,
+                        !inStock && styles.removeButtonOutOfStock
+                      ]}
                       onPress={() => confirmRemove(item)}
                       disabled={removingItem === (item.productId || item.product?.id)}
                     >
@@ -254,7 +405,7 @@ export default function WishlistScreen() {
                       ) : (
                         <>
                           <Icon name="delete" size={20} color="#f44336" />
-                          <Text style={[styles.actionButtonText, styles.removeButtonText]}>Remove</Text>
+                          <Text style={styles.removeButtonText}>Remove</Text>
                         </>
                       )}
                     </TouchableOpacity>
@@ -301,6 +452,12 @@ export default function WishlistScreen() {
                 Remove items you no longer want to keep your wishlist organized
               </Text>
             </View>
+            <View style={styles.tipItem}>
+              <Icon name="bell-outline" size={20} color="#ff9800" />
+              <Text style={styles.tipText}>
+                Get notified when out-of-stock items come back in stock
+              </Text>
+            </View>
           </View>
         )}
       </ScrollView>
@@ -316,10 +473,52 @@ const styles = StyleSheet.create({
   // Header
   header: { padding: 20, backgroundColor: '#fff' },
   title: { fontSize: 24, fontWeight: 'bold', color: '#222' },
-  subtitle: { fontSize: 14, color: '#666', marginTop: 4 },
+  headerInfo: { marginTop: 4 },
+  subtitle: { fontSize: 14, color: '#666' },
+  notificationBadge: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginTop: 8,
+    backgroundColor: '#fff3e0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignSelf: 'flex-start'
+  },
+  notificationCount: { 
+    fontSize: 12, 
+    color: '#ff9800', 
+    marginLeft: 4,
+    fontWeight: '600'
+  },
   
   // Wishlist Container
   wishlistContainer: { padding: 16 },
+  
+  // Out of Stock Summary
+  outOfStockSummary: {
+    backgroundColor: '#ffebee',
+    borderWidth: 1,
+    borderColor: '#ffcdd2',
+    borderRadius: 8,
+    padding: 16,
+    margin: 16,
+    alignItems: 'center',
+  },
+  outOfStockSummaryText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#d32f2f',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  outOfStockSummarySubtext: {
+    fontSize: 13,
+    color: '#c62828',
+    marginTop: 4,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
   
   // Wishlist Item
   wishlistItem: { 
@@ -386,9 +585,10 @@ const styles = StyleSheet.create({
   },
   
   // Action Buttons
-  actionButtons: { flexDirection: 'row', gap: 12 },
+  actionButtons: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   actionButton: { 
     flex: 1, 
+    minWidth: 100,
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'center', 
@@ -403,12 +603,28 @@ const styles = StyleSheet.create({
     borderWidth: 1, 
     borderColor: '#f44336' 
   },
+  removeButtonOutOfStock: {
+    marginTop: 8,
+    width: '100%',
+  },
   actionButtonText: { 
     fontSize: 14, 
     fontWeight: '600',
     color: '#fff'
   },
-  removeButtonText: { color: '#f44336' },
+  removeButtonText: { 
+    color: '#000', 
+    fontSize: 14, 
+    fontWeight: '600' 
+  },
+  notifyButton: { 
+    backgroundColor: '#f44336', 
+    borderWidth: 1, 
+    borderColor: '#f44336' 
+  },
+  notifyButtonText: { color: '#fff' },
+  notifiedButton: { backgroundColor: '#9e9e9e' },
+  notifiedButtonText: { color: '#fff' },
   
   // Empty State
   emptyState: { 

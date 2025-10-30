@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, SafeAreaView, Alert, FlatList, Dimensions, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, SafeAreaView, Alert, FlatList, Dimensions, Modal, TextInput, RefreshControl } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -7,18 +7,21 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import { API_BASE } from '../lib/api';
 import { useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
 export default function ProductDetail() {
   const { addToCart, cartItems } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
+  const { user } = useContext(AuthContext);
   const navigation = useNavigation();
   const route = useRoute();
-  const { product, productId, rewardDiscount, walletDiscount } = route.params || {};
+  const { product, productId, rewardDiscount, walletDiscount, preselectedVariant } = route.params || {};
   const [prod, setProd] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [qty, setQty] = useState(1);
   const [inCart, setInCart] = useState(false);
   const [selectedVariant, setSelectedVariant] = useState(null);
@@ -29,12 +32,13 @@ export default function ProductDetail() {
 
   // Add ref for FlatList
   const flatListRef = useRef(null);
-  
+
   // Zoom modal state
   const [zoomModalVisible, setZoomModalVisible] = useState(false);
   const [zoomedImageIndex, setZoomedImageIndex] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isNotified, setIsNotified] = useState(false);
+  const [notificationRequested, setNotificationRequested] = useState(false);
 
   // Variant state management
   const [variants, setVariants] = useState([]);
@@ -57,23 +61,31 @@ export default function ProductDetail() {
   const [reviewComment, setReviewComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
 
-  const { user } = useContext(AuthContext);
+  // If opened from cart, honor the variant that was in the cart to avoid incorrect "Notify me"
+  useEffect(() => {
+    if (preselectedVariant && preselectedVariant.id) {
+      setSelectedVariant(preselectedVariant);
+      // Best-effort set color/size if available to keep UI in sync
+      if (preselectedVariant.color) setSelectedColor(preselectedVariant.color);
+      if (preselectedVariant.size) setSelectedSize(preselectedVariant.size);
+    }
+  }, [preselectedVariant]);
 
   // Calculate tentative delivery date
   const getTentativeDeliveryDate = () => {
     const today = new Date();
     const deliveryDate = new Date(today);
-    
-    // Random delivery time between 2-5 days
-    const deliveryDays = Math.floor(Math.random() * 4) + 2; // 2 to 5 days
+
+    // Fixed delivery time of 3-5 days (use 4 days as default)
+    const deliveryDays = 4; // Fixed 4 days delivery
     deliveryDate.setDate(today.getDate() + deliveryDays);
-    
-    const options = { 
-      weekday: 'long', 
-      month: 'short', 
-      day: 'numeric' 
+
+    const options = {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric'
     };
-    
+
     return deliveryDate.toLocaleDateString('en-US', options);
   };
 
@@ -133,7 +145,7 @@ export default function ProductDetail() {
     console.log('Product variants:', prod?.variants);
     console.log('Variants state:', variants);
     console.log('Variants length:', variants?.length || prod?.variants?.length);
-    
+
     // Check if we have variants
     const variantsToProcess = variants && variants.length > 0 ? variants : prod?.variants;
     if (!variantsToProcess || variantsToProcess.length === 0) {
@@ -146,22 +158,22 @@ export default function ProductDetail() {
 
     // Check for common alternative field names
     const hasColorVariants = variantsToProcess.some(
-      v => (v.color || v.colour || v.colorName || v.color_name) && 
-           typeof (v.color || v.colour || v.colorName || v.color_name) === 'string' && 
-           (v.color || v.colour || v.colorName || v.color_name).trim() !== ''
+      v => (v.color || v.colour || v.colorName || v.color_name) &&
+        typeof (v.color || v.colour || v.colorName || v.color_name) === 'string' &&
+        (v.color || v.colour || v.colorName || v.color_name).trim() !== ''
     );
 
     const hasSizeOnlyVariants = !hasColorVariants && variantsToProcess.some(
-      v => (v.size || v.sizeName || v.size_name) && 
-           typeof (v.size || v.sizeName || v.size_name) === 'string' && 
-           (v.size || v.sizeName || v.size_name).trim() !== ''
+      v => (v.size || v.sizeName || v.size_name) &&
+        typeof (v.size || v.sizeName || v.size_name) === 'string' &&
+        (v.size || v.sizeName || v.size_name).trim() !== ''
     );
 
     console.log('=== VARIANT ANALYSIS ===');
     console.log('Total variants:', prod.variants.length);
     console.log('Has color variants:', hasColorVariants);
     console.log('Has size-only variants:', hasSizeOnlyVariants);
-    
+
     // Log first few variants to see their structure
     prod.variants.slice(0, 3).forEach((v, i) => {
       console.log(`Variant ${i + 1}:`, {
@@ -180,19 +192,20 @@ export default function ProductDetail() {
       // Normal case: has color values
       let allColors = [];
       let allSizes = [];
-      
+
       console.log('Processing variants with colors...');
       variantsToProcess
-        .filter(v => (v.color || v.colour || v.colorName || v.color_name) && 
-                     typeof (v.color || v.colour || v.colorName || v.color_name) === 'string' && 
-                     (v.color || v.colour || v.colorName || v.color_name).trim() !== '')
+        .filter(v => (v.color || v.colour || v.colorName || v.color_name) &&
+          typeof (v.color || v.colour || v.colorName || v.color_name) === 'string' &&
+          (v.color || v.colour || v.colorName || v.color_name).trim() !== '' &&
+          typeof v.stock === 'number' && v.stock > 0) // Only include variants with stock
         .forEach(v => {
           const colorValue = v.color || v.colour || v.colorName || v.color_name;
           console.log('Processing variant color:', colorValue);
           const colors = parseCommaSeparatedValues(colorValue);
           console.log('Parsed colors:', colors);
           allColors = [...allColors, ...colors];
-          
+
           // Also collect sizes if they exist
           const sizeValue = v.size || v.sizeName || v.size_name;
           if (sizeValue && typeof sizeValue === 'string' && sizeValue.trim() !== '') {
@@ -203,10 +216,16 @@ export default function ProductDetail() {
           }
         });
 
-      // Deduplicate colors
-      const uniqueColors = Array.from(new Set(allColors));
+      // Deduplicate colors and filter out colors with no stock
+      const uniqueColors = Array.from(new Set(allColors)).filter(color => {
+        // Check if this color has any variants with stock
+        const colorStock = variantsToProcess
+          .filter(v => colorMatches(v?.color, color) && typeof v?.stock === 'number' && v.stock > 0)
+          .reduce((total, v) => total + (v?.stock || 0), 0);
+        return colorStock > 0;
+      });
       console.log('Found colors:', allColors);
-      console.log('Unique colors:', uniqueColors);
+      console.log('Unique colors with stock:', uniqueColors);
       setAvailableColors(uniqueColors);
 
       // If only one color, auto-select it
@@ -225,7 +244,7 @@ export default function ProductDetail() {
         console.log('Unique sizes:', uniqueSizes);
         console.log('Sorted sizes:', sortedSizes);
         setAvailableSizes(sortedSizes);
-        
+
         if (sortedSizes.length === 1) {
           setSelectedSize(sortedSizes[0]);
         }
@@ -244,12 +263,12 @@ export default function ProductDetail() {
 
       // Extract all sizes and handle comma-separated values
       let allSizes = [];
-      
+
       variantsToProcess
-        .filter(v => (v.size || v.sizeName || v.size_name) && 
-                     typeof (v.size || v.sizeName || v.size_name) === 'string' && 
-                     (v.size || v.sizeName || v.size_name).trim() !== '' && 
-                     (v.stock || 0) > 0)
+        .filter(v => (v.size || v.sizeName || v.size_name) &&
+          typeof (v.size || v.sizeName || v.size_name) === 'string' &&
+          (v.size || v.sizeName || v.size_name).trim() !== '' &&
+          (v.stock || 0) > 0)
         .forEach(v => {
           const sizeValue = v.size || v.sizeName || v.size_name;
           const sizes = parseCommaSeparatedValues(sizeValue);
@@ -258,7 +277,7 @@ export default function ProductDetail() {
 
       // Deduplicate sizes
       const uniqueSizes = Array.from(new Set(allSizes));
-      
+
       // Sort sizes in logical sequence
       const sortedSizes = sortSizesInOrder(uniqueSizes);
       setAvailableSizes(sortedSizes);
@@ -272,16 +291,16 @@ export default function ProductDetail() {
     } else {
       // No variants with color or size - try fallback extraction
       console.log('No standard color/size fields found, trying fallback extraction...');
-      
+
       let fallbackColors = [];
       let fallbackSizes = [];
-      
+
       // Try to extract from variant names or other fields
       variantsToProcess.forEach(v => {
         // Check variant name for color/size info
         if (v.name || v.variantName || v.title) {
           const variantText = (v.name || v.variantName || v.title).toLowerCase();
-          
+
           // Common color keywords
           const colorKeywords = ['red', 'blue', 'green', 'yellow', 'pink', 'purple', 'orange', 'black', 'white', 'brown', 'gray', 'grey'];
           colorKeywords.forEach(color => {
@@ -289,7 +308,7 @@ export default function ProductDetail() {
               fallbackColors.push(color);
             }
           });
-          
+
           // Common size keywords
           const sizeKeywords = ['xs', 's', 'm', 'l', 'xl', 'xxl', 'small', 'medium', 'large'];
           sizeKeywords.forEach(size => {
@@ -299,10 +318,10 @@ export default function ProductDetail() {
           });
         }
       });
-      
+
       console.log('Fallback colors found:', fallbackColors);
       console.log('Fallback sizes found:', fallbackSizes);
-      
+
       if (fallbackColors.length > 0 || fallbackSizes.length > 0) {
         setAvailableColors(fallbackColors);
         setAvailableSizes(fallbackSizes);
@@ -313,7 +332,7 @@ export default function ProductDetail() {
         onValidSelectionChange(true);
       }
     }
-    
+
     console.log('=== VARIANT PROCESSING COMPLETE ===');
     console.log('Final available colors:', availableColors);
     console.log('Final available sizes:', availableSizes);
@@ -335,14 +354,14 @@ export default function ProductDetail() {
       let allSizes = [];
 
       // Special case for "Default" color (when only size variants exist)
-      const filterFn = selectedColor === 'Default' 
+      const filterFn = selectedColor === 'Default'
         ? (v) => typeof v.stock === 'number' && v.stock > 0
         : (v) => {
-            const colorMatch = v.color && parseCommaSeparatedValues(v.color).some(c => 
-              c.trim().toLowerCase() === selectedColor.trim().toLowerCase()
-            );
-            return colorMatch && typeof v.stock === 'number' && v.stock > 0;
-          };
+          const colorMatch = v.color && parseCommaSeparatedValues(v.color).some(c =>
+            c.trim().toLowerCase() === selectedColor.trim().toLowerCase()
+          );
+          return colorMatch && typeof v.stock === 'number' && v.stock > 0;
+        };
 
       const matchingVariants = prod.variants.filter(filterFn);
 
@@ -356,7 +375,7 @@ export default function ProductDetail() {
 
       // Deduplicate sizes
       const uniqueSizes = Array.from(new Set(allSizes));
-      
+
       // Sort sizes in logical sequence
       const sortedSizes = sortSizesInOrder(uniqueSizes);
       setAvailableSizes(sortedSizes);
@@ -385,7 +404,7 @@ export default function ProductDetail() {
     if (!variants || variants.length === 0) {
       return null;
     }
-    
+
     // Safety check for variants array
     if (!Array.isArray(variants)) {
       return null;
@@ -396,11 +415,11 @@ export default function ProductDetail() {
       if (!variant || typeof variant !== 'object') {
         return false;
       }
-      
+
       const colorMatch = color && colorMatches(variant?.color, color);
       const sizeMatch = size && sizeMatches(variant?.size, size);
       const inStock = (variant?.stock || 0) > 0;
-      
+
       return colorMatch && sizeMatch && inStock;
     });
 
@@ -410,10 +429,10 @@ export default function ProductDetail() {
         if (!variant || typeof variant !== 'object') {
           return false;
         }
-        
+
         const colorMatch = colorMatches(variant?.color, color);
         const inStock = (variant?.stock || 0) > 0;
-        
+
         return colorMatch && inStock;
       });
     }
@@ -424,10 +443,10 @@ export default function ProductDetail() {
         if (!variant || typeof variant !== 'object') {
           return false;
         }
-        
+
         const sizeMatch = sizeMatches(variant?.size, size);
         const inStock = (variant?.stock || 0) > 0;
-        
+
         return sizeMatch && inStock;
       });
     }
@@ -435,71 +454,105 @@ export default function ProductDetail() {
     return matchingVariant;
   };
 
+  // Helper function to process and validate image URLs
+  const processImageUrls = (imageData) => {
+    if (!imageData) return [];
+    
+    let urls = [];
+    
+    if (Array.isArray(imageData)) {
+      urls = imageData;
+    } else if (typeof imageData === 'string') {
+      try {
+        // Try to parse as JSON array first
+        const parsed = JSON.parse(imageData);
+        urls = Array.isArray(parsed) ? parsed : [imageData];
+      } catch (e) {
+        // If not JSON, treat as single URL
+        urls = [imageData];
+      }
+    }
+    
+    // Filter and validate URLs
+    return urls.filter(url => {
+      if (!url || typeof url !== 'string') return false;
+      
+      // Must be a valid HTTP/HTTPS URL
+      const isValidUrl = url.startsWith('http://') || url.startsWith('https://');
+      const isNotPlaceholder = !url.includes('placeholder.com') && !url.includes('via.placeholder');
+      
+      return isValidUrl && isNotPlaceholder && url.length > 10;
+    });
+  };
+
   // Get images for current selection (variant images or fallback to product images)
   const getCurrentImages = () => {
     let images = [];
     
+    console.log('getCurrentImages called with:', {
+      selectedVariant: selectedVariant?.id,
+      selectedColor,
+      selectedSize,
+      variantImages: selectedVariant?.images,
+      productImages: prod?.images,
+      productImageUrl: prod?.imageUrl
+    });
+
     // First priority: Use selected variant images
-    if (selectedVariant && selectedVariant.images && Array.isArray(selectedVariant.images) && selectedVariant.images.length > 0) {
-      images = selectedVariant.images;
+    if (selectedVariant && selectedVariant.images) {
+      images = processImageUrls(selectedVariant.images);
+      if (images.length > 0) {
+        console.log('Using selected variant images:', images);
+      }
     }
+    
     // Second priority: Try to find any variant with matching color that has images
-    else if (selectedColor && variants && variants.length > 0) {
+    if (images.length === 0 && selectedColor && variants && variants.length > 0) {
       const colorVariant = variants.find(variant => {
         const colorMatch = colorMatches(variant.color, selectedColor);
-        const hasImages = variant.images && Array.isArray(variant.images) && variant.images.length > 0;
-        return colorMatch && hasImages;
+        const processedImages = processImageUrls(variant.images);
+        return colorMatch && processedImages.length > 0;
       });
-      
+
       if (colorVariant) {
-        images = colorVariant.images;
+        images = processImageUrls(colorVariant.images);
+        console.log('Using color variant images:', images);
       }
     }
+    
     // Third priority: Fallback to product images
-    else if (prod?.images && Array.isArray(prod.images) && prod.images.length > 0) {
-      images = prod.images;
+    if (images.length === 0 && prod?.images) {
+      images = processImageUrls(prod.images);
+      console.log('Using product images:', images);
     }
-    // Fourth priority: Try to parse product imageUrl if it's a JSON array
-    else if (prod?.imageUrl) {
-      try {
-        const parsedImages = JSON.parse(prod.imageUrl);
-        if (Array.isArray(parsedImages) && parsedImages.length > 0) {
-          images = parsedImages;
-        } else if (typeof prod.imageUrl === 'string' && prod.imageUrl.includes('http')) {
-          images = [prod.imageUrl];
-        }
-      } catch (e) {
-        // If parsing fails, treat as single image
-        if (typeof prod.imageUrl === 'string' && prod.imageUrl.includes('http')) {
-          images = [prod.imageUrl];
-        }
-      }
+    
+    // Fourth priority: Try product imageUrl
+    if (images.length === 0 && prod?.imageUrl) {
+      images = processImageUrls(prod.imageUrl);
+      console.log('Using product imageUrl:', images);
     }
+    
     // Final fallback
-    else {
+    if (images.length === 0) {
       images = ['https://placehold.co/400x400?text=No+Image'];
+      console.log('Using placeholder image');
     }
-    
-    // Filter out invalid URLs and ensure minimum 4 images
-    const validImages = images.filter(img => 
-      img && 
-      typeof img === 'string' && 
-      img.includes('http') && 
-      !img.includes('placeholder.com') &&
-      !img.includes('via.placeholder')
-    );
-    
+
+    // Images are already processed and validated by processImageUrls
+    console.log('Final images before duplication:', images);
+
     // Ensure at least 4 images by duplicating the first valid image
-    const finalImages = [...validImages];
+    const finalImages = [...images];
     if (finalImages.length === 0) {
       finalImages.push('https://placehold.co/400x400?text=No+Image');
     }
-    
+
     // Duplicate images to ensure at least 4
     while (finalImages.length < 4) {
       finalImages.push(finalImages[0]);
     }
-    
+
+    console.log('Final images returned:', finalImages);
     return finalImages;
   };
 
@@ -509,42 +562,72 @@ export default function ProductDetail() {
     if (!variants || !Array.isArray(variants)) {
       return;
     }
-    
+
     const matchingVariant = findMatchingVariant(selectedColor, selectedSize);
-    
+
     setSelectedVariant(matchingVariant);
-    
+
     if (matchingVariant && qty > (matchingVariant?.stock || 0)) {
       setQty(1);
     }
-    
+
     // Reset image index when variant changes
     setCurrentImageIndex(0);
-    
+
     // Force image refresh - always trigger when color/size changes
     setImageRefreshKey(prev => prev + 1);
-    
+
     // Force a re-render of the image component
     setTimeout(() => {
       setImageRefreshKey(prev => prev + 1);
     }, 100);
   }, [selectedColor, selectedSize, variants]);
 
-  // Check if product is in cart
+  // Check if product is in cart (for button display logic)
   useEffect(() => {
     if (prod) {
-      const isProductInCart = cartItems.some(item => {
-        const sameProduct = item.productId === prod.id;
-        const sameVariant = JSON.stringify(item.variant) === JSON.stringify({
-          selectedVariant,
-          selectedColor,
-          selectedSize
+      // For variant products, always show "Add to Cart" to allow multiple variants or quantity increase
+      // For non-variant products, check if exact product is in cart
+      if (availableColors.length > 0 || availableSizes.length > 0) {
+        // Has variants - always show "Add to Cart" to allow adding different variants or increasing quantity
+        setInCart(false);
+      } else {
+        // No variants - check if this exact product is in cart
+        const isProductInCart = cartItems.some(item => {
+          return item.productId === prod.id && !item.variant;
         });
-        return sameProduct && sameVariant;
-      });
-      setInCart(isProductInCart);
+        setInCart(isProductInCart);
+      }
     }
-  }, [cartItems, prod, selectedVariant, selectedColor, selectedSize]);
+  }, [cartItems, prod, availableColors, availableSizes]);
+
+  // Load notification state when product or user changes
+  useEffect(() => {
+    if (prod) {
+      loadNotificationState();
+    }
+  }, [prod, user]);
+
+  // Handle notification after user logs in
+  useEffect(() => {
+    const handlePostLoginNotification = async () => {
+      if (user && notificationRequested && !isNotified) {
+        // User logged in after requesting notification
+        setIsNotified(true);
+        await saveNotificationState();
+        Alert.alert('Notification Set', 'You will be notified when this product is back in stock.');
+      }
+    };
+
+    handlePostLoginNotification();
+  }, [user, notificationRequested]);
+
+  // Check stock status and clear notification if product is back in stock
+  useEffect(() => {
+    if (prod) {
+      checkStockAndClearNotification();
+    }
+  }, [prod, selectedVariant, isNotified, notificationRequested]);
 
   // Fetch product data
   useEffect(() => {
@@ -552,12 +635,12 @@ export default function ProductDetail() {
       const fetchProduct = async () => {
         try {
           setLoading(true);
-          
+
           const res = await fetch(`${API_BASE}/api/products/${productId}?variants=true`);
-          
+
           if (!res.ok) throw new Error('Failed to fetch product');
           const data = await res.json();
-          
+
           // Test: Try different variant endpoints if the main one fails
           if (!data.variants || data.variants.length === 0) {
             // Try without variants parameter
@@ -572,7 +655,7 @@ export default function ProductDetail() {
             } catch (altErr) {
               // Alternative endpoint failed
             }
-            
+
             // Try variants endpoint directly
             try {
               const variantRes = await fetch(`${API_BASE}/api/products/${productId}/variants`);
@@ -587,13 +670,61 @@ export default function ProductDetail() {
             }
           }
           // Ensure seller display fields are present for UI
-          if (data && !data.sellerName && (data.sellerUsername || data.seller?.username || data.seller?.name)) {
-            data.sellerName = data.seller?.name || data.sellerUsername || data.seller?.username;
+          if (data && !data.sellerName) {
+            // Try multiple possible seller field names
+            const possibleSellerName = data.sellerUsername || 
+                                     data.seller?.username || 
+                                     data.seller?.name || 
+                                     data.seller_name ||
+                                     data.sellerName ||
+                                     data.seller_username ||
+                                     data.store_name ||
+                                     data.storeName ||
+                                     data.shop_name ||
+                                     data.shopName ||
+                                     data.brand ||
+                                     data.brandName ||
+                                     data.vendor ||
+                                     data.vendorName;
+            
+            if (possibleSellerName) {
+              data.sellerName = possibleSellerName;
+            }
           }
-          console.log('API Response data:', data);
-          console.log('Variants in API response:', data.variants);
-          setProd(data);
           
+          console.log('API Response data:', data);
+          console.log('Seller info debug:', {
+            sellerName: data.sellerName,
+            seller: data.seller,
+            sellerUsername: data.sellerUsername,
+            seller_name: data.seller_name,
+            seller_username: data.seller_username,
+            store_name: data.store_name,
+            storeName: data.storeName,
+            shop_name: data.shop_name,
+            shopName: data.shopName,
+            brand: data.brand,
+            brandName: data.brandName,
+            vendor: data.vendor,
+            vendorName: data.vendorName
+          });
+          console.log('Variants in API response:', data.variants);
+          
+          // Debug variant images for non-logged users
+          if (data.variants && data.variants.length > 0) {
+            data.variants.forEach((variant, index) => {
+              console.log(`Variant ${index}:`, {
+                id: variant.id,
+                color: variant.color,
+                size: variant.size,
+                images: variant.images,
+                imageCount: variant.images ? variant.images.length : 0
+              });
+            });
+          }
+          
+          setProd(data);
+
           if (data.variants && Array.isArray(data.variants)) {
             console.log('Setting variants from API:', data.variants);
             setVariants(data.variants);
@@ -609,7 +740,7 @@ export default function ProductDetail() {
           } else {
             console.log('No variants found in API response');
             console.log('Available keys in response:', Object.keys(data));
-            
+
             // Check for alternative variant field names
             const possibleVariantFields = ['variants', 'options', 'choices', 'selections', 'combinations'];
             possibleVariantFields.forEach(field => {
@@ -619,7 +750,7 @@ export default function ProductDetail() {
                 // Don't call processVariants here - let the useEffect handle it
               }
             });
-            
+
             if (data.product) {
               console.log('Product object keys:', Object.keys(data.product));
               possibleVariantFields.forEach(field => {
@@ -637,14 +768,31 @@ export default function ProductDetail() {
           setLoading(false);
         }
       };
-      
+
       fetchProduct();
     } else if (product) {
       // Normalize seller display fields for passed-in product object
-      if (product && !product.sellerName && (product.sellerUsername || product.seller?.username || product.seller?.name)) {
-        product = { ...product, sellerName: product.seller?.name || product.sellerUsername || product.seller?.username };
+      if (product && !product.sellerName) {
+        const possibleSellerName = product.sellerUsername || 
+                                 product.seller?.username || 
+                                 product.seller?.name || 
+                                 product.seller_name ||
+                                 product.sellerName ||
+                                 product.seller_username ||
+                                 product.store_name ||
+                                 product.storeName ||
+                                 product.shop_name ||
+                                 product.shopName ||
+                                 product.brand ||
+                                 product.brandName ||
+                                 product.vendor ||
+                                 product.vendorName;
+        
+        if (possibleSellerName) {
+          product = { ...product, sellerName: possibleSellerName };
+        }
       }
-      
+
       setProd(product);
       if (product.variants && Array.isArray(product.variants)) {
         setVariants(product.variants);
@@ -656,6 +804,52 @@ export default function ProductDetail() {
       setLoading(false);
     }
   }, [product, productId]);
+
+  // Refresh function for pull-to-refresh
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      if (productId) {
+        const res = await fetch(`${API_BASE}/api/products/${productId}?variants=true`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && !data.sellerName) {
+            const possibleSellerName = data.sellerUsername || 
+                                     data.seller?.username || 
+                                     data.seller?.name || 
+                                     data.seller_name ||
+                                     data.sellerName ||
+                                     data.seller_username ||
+                                     data.store_name ||
+                                     data.storeName ||
+                                     data.shop_name ||
+                                     data.shopName ||
+                                     data.brand ||
+                                     data.brandName ||
+                                     data.vendor ||
+                                     data.vendorName;
+            
+            if (possibleSellerName) {
+              data.sellerName = possibleSellerName;
+            }
+          }
+          setProd(data);
+          if (data.variants && Array.isArray(data.variants)) {
+            setVariants(data.variants);
+          }
+        }
+      }
+      // Also refresh reviews and similar products
+      if (prod) {
+        fetchReviews();
+        fetchSimilarProducts();
+      }
+    } catch (err) {
+      console.error('Refresh error:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [productId, prod]);
 
   // Process variants when product or variants change
   useEffect(() => {
@@ -698,26 +892,35 @@ export default function ProductDetail() {
   const fetchSimilarProducts = async () => {
     if (!prod?.id) return;
     setSimilarLoading(true);
-    
+
     try {
       // First try the dedicated similar products endpoint (like website)
       const res = await fetch(`${API_BASE}/api/recommendations/similar/${prod.id}`);
-      
+
       if (res.ok) {
         const data = await res.json();
-        
+
         if (data && Array.isArray(data) && data.length > 0) {
           setSimilarProducts(data.slice(0, 6));
           return;
         }
       }
-      
+
       // Fallback: Manual search like before
-      const rawSeller = (prod?.seller?.username 
-        || prod?.sellerName 
-        || prod?.seller_username 
-        || prod?.seller?.name 
-        || prod?.seller 
+      const rawSeller = (prod?.seller?.username
+        || prod?.sellerName
+        || prod?.seller_username
+        || prod?.seller?.name
+        || prod?.seller_name
+        || prod?.store_name
+        || prod?.storeName
+        || prod?.shop_name
+        || prod?.shopName
+        || prod?.brand
+        || prod?.brandName
+        || prod?.vendor
+        || prod?.vendorName
+        || prod?.seller
         || '').toString();
       const currentSeller = rawSeller.trim().toLowerCase();
 
@@ -740,11 +943,20 @@ export default function ProductDetail() {
       let next = [];
       if (!useCategoryFallback) {
         next = allProducts.filter(p => {
-          const pSeller = (p?.seller?.username 
-            || p?.sellerName 
-            || p?.seller_username 
-            || p?.seller?.name 
-            || p?.seller 
+          const pSeller = (p?.seller?.username
+            || p?.sellerName
+            || p?.seller_username
+            || p?.seller?.name
+            || p?.seller_name
+            || p?.store_name
+            || p?.storeName
+            || p?.shop_name
+            || p?.shopName
+            || p?.brand
+            || p?.brandName
+            || p?.vendor
+            || p?.vendorName
+            || p?.seller
             || '').toString().trim().toLowerCase();
           const match = pSeller === currentSeller && p?.id !== prod.id;
           return match;
@@ -760,7 +972,7 @@ export default function ProductDetail() {
       if (next.length === 0) {
         next = allProducts.filter(p => p?.id !== prod.id).slice(0, 6);
       }
-      
+
       setSimilarProducts(next.slice(0, 6));
     } catch (err) {
       // Failed to fetch similar products
@@ -815,7 +1027,7 @@ export default function ProductDetail() {
           } else {
             msg = await res.text();
           }
-        } catch {}
+        } catch { }
         // Common cases: 401 not logged in, 403 seller/admin, 400 validation
         if (res.status === 401) msg = 'Please login to write a review';
         if (res.status === 403) msg = 'Only buyers can write reviews';
@@ -837,7 +1049,7 @@ export default function ProductDetail() {
   // Helper to render HTML description
   function renderHtmlDescription(html) {
     if (!html) return null;
-    
+
     const plainText = stripHtmlTags(html);
     return (
       <View style={styles.descriptionContainer}>
@@ -869,9 +1081,9 @@ export default function ProductDetail() {
   };
 
   // Handle add to cart (like website implementation)
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!prod) return;
-    
+
     // Check if variants are required but not selected
     if (availableColors.length > 0 && !selectedColor) {
       setShowColorError(true);
@@ -890,7 +1102,7 @@ export default function ProductDetail() {
     if (prod?.variants && prod.variants.length > 0) {
       if (selectedColor && selectedSize) {
         // Both color and size selected - find exact match
-        selectedVariant = prod.variants.find(v => 
+        selectedVariant = prod.variants.find(v =>
           colorMatches(v.color, selectedColor) && sizeMatches(v.size, selectedSize)
         );
       } else if (selectedColor && !selectedSize) {
@@ -913,47 +1125,68 @@ export default function ProductDetail() {
       return;
     }
 
-    const cartItem = {
-      id: prod.id,
-      name: prod.name,
-      price: selectedVariant ? selectedVariant.price : prod.price,
-      mrp: selectedVariant ? selectedVariant.mrp : prod.mrp,
-      image: selectedVariant && selectedVariant.images ? selectedVariant.images[0] : prod.imageUrl,
-      quantity: qty,
-      color: selectedColor !== 'Default' ? selectedColor : null,
-      size: selectedSize || null,
-      variantId: selectedVariant ? selectedVariant.id : null,
-      sellerId: prod.sellerId,
-      sellerName: prod.sellerName,
-      category: prod.category,
-      subcategory: prod.subcategory,
-      brand: prod.brand,
-      weight: prod.weight,
-      dimensions: prod.dimensions,
-      warranty: prod.warranty,
-      returnPolicy: prod.returnPolicy,
-      shippingPolicy: prod.shippingPolicy,
-      gstRate: prod.gstRate,
-      hsnCode: prod.hsnCode,
-      sku: selectedVariant ? selectedVariant.sku : prod.sku,
-      stock: selectedVariant ? selectedVariant.stock : prod.stock,
-      isVariant: !!selectedVariant,
-      parentProductId: prod.id,
-      selectedVariant: selectedVariant,
-      selectedColor: selectedColor,
-      selectedSize: selectedSize
-    };
+    // Prepare the variant object if one is selected
+    const variantForCart = selectedVariant ? {
+      id: selectedVariant.id,
+      color: selectedColor,
+      size: selectedSize,
+      price: selectedVariant.price,
+      mrp: selectedVariant.mrp,
+      stock: selectedVariant.stock,
+      sku: selectedVariant.sku,
+      images: selectedVariant.images || [],
+      name: `${selectedColor || ''}${selectedColor && selectedSize ? ' - ' : ''}${selectedSize || ''}`.trim()
+    } : null;
 
-    // Add to cart (works for both logged and guest users)
-    addToCart(cartItem, qty);
-    setInCart(true);
+    // Debug: Log what we're passing to addToCart
+    console.log('=== PRODUCT DETAIL ADD TO CART ===');
+    console.log('Product name:', prod?.name);
+    console.log('Selected color:', selectedColor);
+    console.log('Selected size:', selectedSize);
+    console.log('Selected variant:', selectedVariant);
+    console.log('Selected variant images:', selectedVariant?.images);
+    console.log('Product imageUrl:', prod?.imageUrl);
+    console.log('Product images:', prod?.images);
+    console.log('Product image:', prod?.image);
+    console.log('Product mainImage:', prod?.mainImage);
+    console.log('Variant for cart:', variantForCart);
+    console.log('Variant for cart images:', variantForCart?.images);
     
-    Alert.alert('Success', 'Product added to cart!');
+    // Add to cart (works for both logged and guest users)
+    // Pass product, quantity, and variant separately as expected by CartContext
+    try {
+      await addToCart(prod, qty, variantForCart, false); // Don't show alert from CartContext
+      setInCart(true);
+      Alert.alert('Success', 'Product added to cart!');
+    } catch (error) {
+      Alert.alert('Error', error?.message || 'Failed to add product to cart');
+    }
   };
 
   // Handle buy now
-  const handleBuyNow = () => {
+  const handleBuyNow = async () => {
     if (!prod) return;
+
+    // Check if user is logged in
+    if (!user) {
+      Alert.alert(
+        'Login Required',
+        'Please login to proceed with your purchase.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Login', 
+            onPress: () => {
+              // Use setTimeout to ensure alert is dismissed before navigation
+              setTimeout(() => {
+                navigation.navigate('Account');
+              }, 100);
+            }
+          }
+        ]
+      );
+      return;
+    }
 
     // Check if variants are required but not selected
     if (availableColors.length > 0 && !selectedColor) {
@@ -973,7 +1206,7 @@ export default function ProductDetail() {
     if (prod?.variants && prod.variants.length > 0) {
       if (selectedColor && selectedSize) {
         // Both color and size selected - find exact match
-        selectedVariant = prod.variants.find(v => 
+        selectedVariant = prod.variants.find(v =>
           colorMatches(v.color, selectedColor) && sizeMatches(v.size, selectedSize)
         );
       } else if (selectedColor && !selectedSize) {
@@ -996,42 +1229,143 @@ export default function ProductDetail() {
       return;
     }
 
-    const cartItem = {
-      id: prod.id,
-      name: prod.name,
-      price: selectedVariant ? selectedVariant.price : prod.price,
-      mrp: selectedVariant ? selectedVariant.mrp : prod.mrp,
-      image: selectedVariant && selectedVariant.images ? selectedVariant.images[0] : prod.imageUrl,
-      quantity: qty,
-      color: selectedColor !== 'Default' ? selectedColor : null,
-      size: selectedSize || null,
-      variantId: selectedVariant ? selectedVariant.id : null,
-      sellerId: prod.sellerId,
-      sellerName: prod.sellerName,
-      category: prod.category,
-      subcategory: prod.subcategory,
-      brand: prod.brand,
-      weight: prod.weight,
-      dimensions: prod.dimensions,
-      warranty: prod.warranty,
-      returnPolicy: prod.returnPolicy,
-      shippingPolicy: prod.shippingPolicy,
-      gstRate: prod.gstRate,
-      hsnCode: prod.hsnCode,
-      sku: selectedVariant ? selectedVariant.sku : prod.sku,
-      stock: selectedVariant ? selectedVariant.stock : prod.stock,
-      isVariant: !!selectedVariant,
-      parentProductId: prod.id
-    };
+    // Prepare the variant object if one is selected
+    const variantForCart = selectedVariant ? {
+      id: selectedVariant.id,
+      color: selectedColor,
+      size: selectedSize,
+      price: selectedVariant.price,
+      mrp: selectedVariant.mrp,
+      stock: selectedVariant.stock,
+      sku: selectedVariant.sku,
+      images: selectedVariant.images || [],
+      name: `${selectedColor || ''}${selectedColor && selectedSize ? ' - ' : ''}${selectedSize || ''}`.trim()
+    } : null;
 
-    addToCart(cartItem);
-    navigation.navigate('Checkout');
+    // For Buy Now, navigate to OrderSummaryScreen with the single product
+    // This bypasses the cart entirely and handles only the current product
+    navigation.navigate('OrderSummary', {
+      buyNowProduct: prod,
+      buyNowQty: qty,
+      selectedVariant: variantForCart
+    });
+  };
+
+  // Load notification state from storage
+  const loadNotificationState = async () => {
+    try {
+      const productId = prod?.id || productId;
+      if (!productId) return;
+      
+      // Check if user has requested notification for this product
+      const notificationKey = `notify_${productId}`;
+      const userNotificationKey = user ? `notify_${productId}_${user.id}` : `notify_${productId}_guest`;
+      
+      const [generalNotification, userNotification] = await Promise.all([
+        AsyncStorage.getItem(notificationKey),
+        AsyncStorage.getItem(userNotificationKey)
+      ]);
+      
+      const hasNotification = generalNotification === 'true' || userNotification === 'true';
+      setIsNotified(hasNotification);
+      setNotificationRequested(hasNotification);
+    } catch (error) {
+      console.log('Error loading notification state:', error);
+    }
+  };
+
+  // Save notification state to storage
+  const saveNotificationState = async () => {
+    try {
+      const currentProductId = prod?.id || productId;
+      if (!currentProductId) return;
+      
+      const notificationKey = `notify_${currentProductId}`;
+      const userNotificationKey = user ? `notify_${currentProductId}_${user.id}` : `notify_${currentProductId}_guest`;
+      
+      // Save both general and user-specific notification
+      await Promise.all([
+        AsyncStorage.setItem(notificationKey, 'true'),
+        AsyncStorage.setItem(userNotificationKey, 'true')
+      ]);
+      
+      // Also save notification details for potential API sync
+      const notificationData = {
+        productId: currentProductId,
+        productName: prod?.name,
+        userId: user?.id || 'guest',
+        userEmail: user?.email || null,
+        timestamp: new Date().toISOString(),
+        isLoggedIn: !!user
+      };
+      
+      await AsyncStorage.setItem(`notify_data_${currentProductId}`, JSON.stringify(notificationData));
+    } catch (error) {
+      console.log('Error saving notification state:', error);
+    }
+  };
+
+  // Check if product is back in stock and clear notification if needed
+  const checkStockAndClearNotification = async () => {
+    try {
+      const currentProductId = prod?.id || productId;
+      if (!currentProductId) return;
+      
+      const currentStock = getCurrentStock();
+      
+      // If product is back in stock and user was notified, clear the notification
+      if (currentStock > 0 && (isNotified || notificationRequested)) {
+        const notificationKey = `notify_${currentProductId}`;
+        const userNotificationKey = user ? `notify_${currentProductId}_${user.id}` : `notify_${currentProductId}_guest`;
+        
+        await Promise.all([
+          AsyncStorage.removeItem(notificationKey),
+          AsyncStorage.removeItem(userNotificationKey),
+          AsyncStorage.removeItem(`notify_data_${currentProductId}`)
+        ]);
+        
+        setIsNotified(false);
+        setNotificationRequested(false);
+      }
+    } catch (error) {
+      console.log('Error checking stock and clearing notification:', error);
+    }
   };
 
   // Handle notify me
-  const handleNotifyMe = () => {
-    if (isNotified) return;
+  const handleNotifyMe = async () => {
+    if (isNotified || notificationRequested) return;
+    
+    // Check if user is logged in
+    if (!user) {
+      Alert.alert(
+        'Out of Stock - Login Required',
+        'While clicked on Notify me you need to login first',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Login', 
+            onPress: () => {
+              // Save notification request for after login
+              setNotificationRequested(true);
+              // Use setTimeout to ensure alert is dismissed before navigation
+              setTimeout(() => {
+                navigation.navigate('Account');
+              }, 100);
+            }
+          }
+        ]
+      );
+      return;
+    }
+    
+    // Set notification state
     setIsNotified(true);
+    setNotificationRequested(true);
+    
+    // Save to storage
+    await saveNotificationState();
+    
     Alert.alert('Notified', 'You will be notified when this product is back in stock.');
   };
 
@@ -1040,11 +1374,11 @@ export default function ProductDetail() {
     const stars = [];
     for (let i = 1; i <= 5; i++) {
       stars.push(
-        <Icon 
-          key={i} 
-          name={i <= rating ? "star" : "star-outline"} 
-          size={16} 
-          color={i <= rating ? "#ffc107" : "#ddd"} 
+        <Icon
+          key={i}
+          name={i <= rating ? "star" : "star-outline"}
+          size={16}
+          color={i <= rating ? "#ffc107" : "#ddd"}
         />
       );
     }
@@ -1090,7 +1424,18 @@ export default function ProductDetail() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#f5f7fa' }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#2874f0']}
+            tintColor="#2874f0"
+          />
+        }
+      >
         <SafeAreaView style={styles.headerSafeArea}>
           {/* Header with back button and wishlist */}
           <View style={styles.headerContainer}>
@@ -1100,7 +1445,7 @@ export default function ProductDetail() {
             >
               <Icon name="arrow-left" size={24} color="#333" />
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={styles.wishlistButton}
               onPress={() => {
@@ -1112,58 +1457,64 @@ export default function ProductDetail() {
 
                 toggleWishlist(productForWishlist);
                 Alert.alert(
-                  'Wishlist', 
+                  'Wishlist',
                   isInWishlist(prod?.id) ? 'Removed from wishlist' : 'Added to wishlist'
                 );
               }}
             >
-              <Icon 
-                name={isInWishlist(prod?.id) ? "heart" : "heart-outline"} 
-                size={24} 
-                color={isInWishlist(prod?.id) ? "#e91e63" : "#333"} 
+              <Icon
+                name={isInWishlist(prod?.id) ? "heart" : "heart-outline"}
+                size={24}
+                color={isInWishlist(prod?.id) ? "#e91e63" : "#333"}
               />
             </TouchableOpacity>
           </View>
-          
+
           {/* Enhanced Image Carousel */}
           <View style={styles.imageCarouselContainer}>
-          <FlatList
+            <FlatList
               data={getCurrentImages()}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={e => setCurrentImageIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={e => setCurrentImageIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
               renderItem={({ item, index }) => (
                 <View style={styles.imageContainer}>
-                  <Image 
-                    source={{ uri: item }} 
-                    style={styles.productImage} 
+                  <Image
+                    source={{ uri: item }}
+                    style={styles.productImage}
+                    onError={(error) => {
+                      console.log('Image failed to load:', item, error);
+                    }}
+                    onLoad={() => {
+                      console.log('Image loaded successfully:', item);
+                    }}
                     resizeMode="contain"
-                    onError={(e) => {/* Image load error */}}
+                    onError={(e) => {/* Image load error */ }}
                   />
                   {/* Image counter */}
                   <View style={styles.imageCounter}>
                     <Text style={styles.imageCounterText}>{index + 1} / {getCurrentImages().length}</Text>
                   </View>
                   {/* Zoom indicator */}
-                  <TouchableOpacity 
-                    style={styles.zoomIndicator} 
-                    onPress={() => { 
-                      setZoomedImageIndex(index); 
+                  <TouchableOpacity
+                    style={styles.zoomIndicator}
+                    onPress={() => {
+                      setZoomedImageIndex(index);
                       setZoomLevel(1); // Reset zoom level when opening
-                      setZoomModalVisible(true); 
+                      setZoomModalVisible(true);
                     }}
                   >
                     <Icon name="magnify-plus" size={20} color="#fff" />
                   </TouchableOpacity>
-                  
+
                   {/* Quick zoom preview */}
                   <View style={styles.quickZoomPreview}>
                     <Text style={styles.quickZoomText}>Tap to zoom</Text>
                   </View>
                 </View>
-            )}
-            keyExtractor={(_, i) => i.toString()}
+              )}
+              keyExtractor={(_, i) => i.toString()}
               style={styles.imageCarousel}
               key={`${selectedColor}-${selectedSize}-${selectedVariant?.id || 'default'}-${imageRefreshKey}`}
               ref={flatListRef}
@@ -1173,19 +1524,19 @@ export default function ProductDetail() {
                 index,
               })}
               removeClippedSubviews={false}
-          />
-            
+            />
+
             {/* Enhanced Carousel Dots */}
             <View style={styles.carouselDots}>
               {getCurrentImages().map((_, i) => (
-                <TouchableOpacity 
-                  key={`dot-${selectedColor}-${selectedSize}-${i}`} 
+                <TouchableOpacity
+                  key={`dot-${selectedColor}-${selectedSize}-${i}`}
                   style={[styles.dot, currentImageIndex === i && styles.activeDot]}
                   onPress={() => {
                     // Scroll to specific image with error handling
                     try {
-                      flatListRef.current?.scrollToIndex({ 
-                        index: i, 
+                      flatListRef.current?.scrollToIndex({
+                        index: i,
                         animated: true,
                         viewPosition: 0.5
                       });
@@ -1198,18 +1549,18 @@ export default function ProductDetail() {
                 />
               ))}
             </View>
-            
+
             {/* Image Navigation Arrows */}
             {getCurrentImages().length > 1 && (
               <>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.navArrow, styles.navArrowLeft]}
                   onPress={() => {
                     const newIndex = currentImageIndex > 0 ? currentImageIndex - 1 : getCurrentImages().length - 1;
                     setCurrentImageIndex(newIndex);
                     try {
-                      flatListRef.current?.scrollToIndex({ 
-                        index: newIndex, 
+                      flatListRef.current?.scrollToIndex({
+                        index: newIndex,
                         animated: true,
                         viewPosition: 0.5
                       });
@@ -1220,15 +1571,15 @@ export default function ProductDetail() {
                 >
                   <Icon name="chevron-left" size={24} color="#fff" />
                 </TouchableOpacity>
-                
-                <TouchableOpacity 
+
+                <TouchableOpacity
                   style={[styles.navArrow, styles.navArrowRight]}
                   onPress={() => {
                     const newIndex = currentImageIndex < getCurrentImages().length - 1 ? currentImageIndex + 1 : 0;
                     setCurrentImageIndex(newIndex);
                     try {
-                      flatListRef.current?.scrollToIndex({ 
-                        index: newIndex, 
+                      flatListRef.current?.scrollToIndex({
+                        index: newIndex,
                         animated: true,
                         viewPosition: 0.5
                       });
@@ -1242,54 +1593,54 @@ export default function ProductDetail() {
               </>
             )}
           </View>
-          
+
           {/* Variant indicator */}
           {selectedVariant && selectedVariant.images && selectedVariant.images.length > 0 && (
             <View style={styles.variantIndicator}>
               <Icon name="image-multiple" size={14} color="#2e7d32" style={{ marginRight: 4 }} />
               <Text style={styles.variantIndicatorText}>
-                {selectedColor && selectedSize ? `${selectedColor} / ${selectedSize}` : 
-                 selectedColor ? selectedColor : selectedSize ? selectedSize : 'Variant'} Images
+                {selectedColor && selectedSize ? `${selectedColor} / ${selectedSize}` :
+                  selectedColor ? selectedColor : selectedSize ? selectedSize : 'Variant'} Images
               </Text>
             </View>
           )}
-          
+
 
         </SafeAreaView>
         <View style={styles.contentContainer}>
           <Text style={styles.productName}>{prod?.name}</Text>
-          
+
           {/* Variant Indicator */}
           {(availableColors.length > 0 || availableSizes.length > 0) && (
             <View style={styles.variantIndicator}>
               <Icon name="package-variant" size={16} color="#2e7d32" style={{ marginRight: 6 }} />
               <Text style={styles.variantIndicatorText}>
-                {availableColors.length > 0 && availableSizes.length > 0 ? 
+                {availableColors.length > 0 && availableSizes.length > 0 ?
                   `${availableColors.length} Colors • ${availableSizes.length} Sizes Available` :
-                  availableColors.length > 0 ? 
+                  availableColors.length > 0 ?
                     `${availableColors.length} Colors Available` :
                     `${availableSizes.length} Sizes Available`
                 }
               </Text>
             </View>
           )}
-          
+
           {/* Seller Name */}
           {prod?.sellerName || prod?.seller ? (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={{ marginBottom: 6 }}
               onPress={() => {
                 const sellerName = prod?.sellerName || prod?.seller;
                 const sellerId = prod?.sellerId;
-                navigation.navigate('SellerProducts', { 
-                  sellerName, 
-                  sellerId 
+                navigation.navigate('SellerProducts', {
+                  sellerName,
+                  sellerId
                 });
               }}
             >
-              <Text style={{ 
-                fontWeight: 'bold', 
-                fontSize: 16, 
+              <Text style={{
+                fontWeight: 'bold',
+                fontSize: 16,
                 color: '#6B3F1D',
                 textDecorationLine: 'underline'
               }}>
@@ -1298,14 +1649,7 @@ export default function ProductDetail() {
             </TouchableOpacity>
           ) : null}
 
-          {/* Variant Selection Instructions */}
-          {(availableColors.length > 0 || availableSizes.length > 0) && (
-            <View style={styles.variantInstructions}>
-              <Text style={styles.variantInstructionsText}>
-                Please select your preferred options below:
-              </Text>
-            </View>
-          )}
+
 
           {/* Debug Variant Info - Remove in production */}
           {__DEV__ && (
@@ -1325,9 +1669,9 @@ export default function ProductDetail() {
               <Text style={styles.debugVariantText}>
                 Selected Size: {selectedSize || 'None'}
               </Text>
-              
+
               {/* Test Variant Processing Button */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.debugButton}
                 onPress={() => {
                   console.log('=== MANUAL VARIANT TEST ===');
@@ -1400,7 +1744,7 @@ export default function ProductDetail() {
               {showSizeError && (
                 <Text style={styles.errorText}>Please select a size</Text>
               )}
-              
+
               {/* Size Guide Link */}
               <TouchableOpacity style={styles.sizeGuideLink}>
                 <Text style={styles.sizeGuideText}>Size Guide</Text>
@@ -1415,78 +1759,56 @@ export default function ProductDetail() {
                 <Text style={styles.variantTitle}>Color</Text>
                 {showColorError && (
                   <View style={styles.errorContainer}>
-                    <Icon name="alert-triangle" size={16} color="#e53935" />
+                    <Icon name="alert" size={16} color="#e53935" />
                     <Text style={styles.errorText}>Please select a color</Text>
                   </View>
                 )}
               </View>
-              
+
               <View style={styles.colorContainer}>
-                {availableColors.map((color) => {
-                  // Get variant stock for this color
-                  const colorStock = prod?.variants
-                    ?.filter(v => colorMatches(v?.color, color) && typeof v?.stock === 'number' && v.stock > 0)
-                    ?.reduce((total, v) => total + (v?.stock || 0), 0) || 0;
+                {availableColors
+                  .filter((color) => {
+                    // Get variant stock for this color
+                    const colorStock = prod?.variants
+                      ?.filter(v => colorMatches(v?.color, color) && typeof v?.stock === 'number' && v.stock > 0)
+                      ?.reduce((total, v) => total + (v?.stock || 0), 0) || 0;
+                    
+                    // Only show colors that have stock
+                    return colorStock > 0;
+                  })
+                  .map((color) => {
+                    return (
+                      <TouchableOpacity
+                        key={color}
+                        style={[
+                          styles.colorOption,
+                          selectedColor === color && styles.selectedColorOption
+                        ]}
+                        onPress={() => {
+                          setSelectedColor(color);
+                          setShowColorError(false);
+                          // Reset size when color changes
+                          setSelectedSize(null);
+                        }}
+                      >
+                        <View style={styles.colorOptionContent}>
+                          <Text style={[
+                            styles.colorName,
+                            selectedColor === color && styles.selectedColorName
+                          ]}>
+                            {color}
+                          </Text>
 
-                  // Find a variant with this color to get its price
-                  const variantWithColor = prod?.variants?.find(v => colorMatches(v?.color, color));
-                  const price = variantWithColor?.price;
-                  const mrp = variantWithColor?.mrp;
-                  
-                  const isOutOfStock = colorStock === 0;
-                  
-                  // Show discount if available
-                  const discount = price && mrp && mrp > price ? Math.round((1 - price / mrp) * 100) : null;
-
-                  return (
-                    <TouchableOpacity
-                      key={color}
-                      style={[
-                        styles.colorOption,
-                        selectedColor === color && styles.selectedColorOption,
-                        isOutOfStock && styles.outOfStockColorOption
-                      ]}
-                      disabled={isOutOfStock}
-                      onPress={() => { 
-                        setSelectedColor(color); 
-                        setShowColorError(false);
-                        // Reset size when color changes
-                        setSelectedSize(null);
-                      }}
-                    >
-                      <View style={styles.colorOptionContent}>
-                        <Text style={[
-                          styles.colorName,
-                          selectedColor === color && styles.selectedColorName,
-                          isOutOfStock && styles.outOfStockColorName
-                        ]}>
-                          {color}
-                        </Text>
-                        
-                        {/* Selected checkmark */}
-                        {selectedColor === color && (
-                          <View style={styles.selectedCheckmark}>
-                            <Icon name="check" size={12} color="#fff" />
-                          </View>
-                        )}
-                        
-                        {/* Discount badge */}
-                        {!isOutOfStock && discount && discount > 0 && (
-                          <View style={styles.discountBadge}>
-                            <Text style={styles.discountText}>{discount}% off</Text>
-                          </View>
-                        )}
-                        
-                        {/* Out of stock overlay */}
-                        {isOutOfStock && (
-                          <View style={styles.outOfStockOverlay}>
-                            <Text style={styles.outOfStockText}>Out of stock</Text>
-                          </View>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
+                          {/* Selected checkmark */}
+                          {selectedColor === color && (
+                            <View style={styles.selectedCheckmark}>
+                              <Icon name="check" size={12} color="#fff" />
+                            </View>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
               </View>
             </View>
           )}
@@ -1523,7 +1845,7 @@ export default function ProductDetail() {
               </View>
             )}
           </View>
-          
+
 
 
           {/* Enhanced Stock Information - like website */}
@@ -1532,19 +1854,19 @@ export default function ProductDetail() {
               <View style={styles.stockInfoContainer}>
                 <View style={[
                   styles.stockIndicator,
-                  selectedVariant.stock > 0 ? 
-                    (selectedVariant.stock <= 5 ? styles.lowStockIndicator : styles.inStockIndicator) : 
+                  selectedVariant.stock > 0 ?
+                    (selectedVariant.stock <= 5 ? styles.lowStockIndicator : styles.inStockIndicator) :
                     styles.outOfStockIndicator
                 ]} />
                 <Text style={[
                   styles.stockInfo,
-                  selectedVariant.stock > 0 ? 
-                    (selectedVariant.stock <= 5 ? styles.lowStockText : styles.inStockText) : 
+                  selectedVariant.stock > 0 ?
+                    (selectedVariant.stock <= 5 ? styles.lowStockText : styles.inStockText) :
                     styles.outOfStockText
                 ]}>
                   {selectedVariant.stock > 0 ? (
-                    selectedVariant.stock <= 5 ? 
-                      `Only ${selectedVariant.stock} left in stock` : 
+                    selectedVariant.stock <= 5 ?
+                      `Only ${selectedVariant.stock} left in stock` :
                       'In stock'
                   ) : (
                     'Out of stock'
@@ -1554,16 +1876,14 @@ export default function ProductDetail() {
                   <Text style={styles.skuText}>SKU: {selectedVariant.sku}</Text>
                 )}
               </View>
-            ) : !selectedColor && availableColors.length > 1 ? (
-              <Text style={styles.selectColorText}>Please select a color to check availability</Text>
             ) : null}
-            
+
             {/* Shipping info */}
             {selectedVariant && selectedVariant.stock > 0 && (
               <Text style={styles.shippingInfo}>Usually ships within 1-2 business days</Text>
             )}
           </View>
-          
+
           {/* Quantity Control */}
           <View style={styles.quantitySection}>
             <Text style={styles.quantityLabel}>Quantity:</Text>
@@ -1585,7 +1905,7 @@ export default function ProductDetail() {
               </TouchableOpacity>
             </View>
           </View>
-          
+
           <View style={styles.ratingRow}>
             <View style={styles.ratingBox}><Text style={styles.ratingText}>{prod?.rating || '4.3'}</Text><Icon name="star" size={14} color="#fff" /></View>
             <Text style={styles.ratingCount}>{prod?.ratingCount || '1,234 ratings'}</Text>
@@ -1596,16 +1916,42 @@ export default function ProductDetail() {
               <Text style={styles.delivery}>{getDeliveryMessage()}</Text>
             </View>
           ) : null}
-          
-          {/* Return Policy */}
-          <View style={styles.returnPolicyContainer}>
-            <Icon name="refresh" size={16} color="#388e3c" style={{ marginRight: 6 }} />
-            <Text style={styles.returnPolicyText}>7 Days Return Policy</Text>
-          </View>
+
+          {/* Expected Delivery Date */}
+          {getCurrentStock() > 0 && (
+            <View style={styles.deliveryContainer}>
+              <Icon name="calendar-clock" size={16} color="#ff9800" style={{ marginRight: 6 }} />
+              <Text style={styles.delivery}>Expected delivery: {getTentativeDeliveryDate()}</Text>
+            </View>
+          )}
+
+          {/* Warranty Information */}
+          {prod?.warranty && prod.warranty.trim() !== '' && (
+            <View style={styles.warrantyContainer}>
+              <Icon name="shield-check" size={16} color="#2196f3" style={{ marginRight: 6 }} />
+              <Text style={styles.warrantyText}>Warranty: {prod.warranty}</Text>
+            </View>
+          )}
+
+          {/* Return Policy - Only show if seller has set a return policy */}
+          {prod?.returnPolicy && prod.returnPolicy.trim() !== '' && (
+            <View style={styles.returnPolicyContainer}>
+              <Icon name="refresh" size={16} color="#388e3c" style={{ marginRight: 6 }} />
+              <Text style={styles.returnPolicyText}>{prod.returnPolicy}</Text>
+            </View>
+          )}
+
+          {/* Shipping Policy */}
+          {prod?.shippingPolicy && prod.shippingPolicy.trim() !== '' && (
+            <View style={styles.shippingPolicyContainer}>
+              <Icon name="truck" size={16} color="#9c27b0" style={{ marginRight: 6 }} />
+              <Text style={styles.shippingPolicyText}>Shipping: {prod.shippingPolicy}</Text>
+            </View>
+          )}
 
           {/* Description */}
           {renderHtmlDescription(prod?.description)}
-          
+
           <Text style={styles.highlightsTitle}>Highlights</Text>
           <View style={styles.highlightsList}>
             {(prod?.highlights || ['Genuine product', 'Easy returns', 'Secure payment']).map((h, i) => (
@@ -1620,21 +1966,21 @@ export default function ProductDetail() {
           <View style={styles.reviewsSection}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Customer Reviews</Text>
-              <View style={styles.reviewActions}>
-                <TouchableOpacity style={styles.writeReviewBtn} onPress={handleWriteReview}>
-                  <Icon name="pencil" size={16} color="#fff" />
-                  <Text style={styles.writeReviewBtnText}>Write Review</Text>
+              {reviews.length > 0 && (
+                <TouchableOpacity onPress={() => setShowAllReviews(!showAllReviews)}>
+                  <Text style={styles.viewAllText}>
+                    {showAllReviews ? 'Show Less' : `View All (${reviews.length})`}
+                  </Text>
                 </TouchableOpacity>
-                {reviews.length > 0 && (
-                  <TouchableOpacity onPress={() => setShowAllReviews(!showAllReviews)}>
-                    <Text style={styles.viewAllText}>
-                      {showAllReviews ? 'Show Less' : `View All (${reviews.length})`}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+              )}
             </View>
-            
+
+            {/* Write Review Button - ensure consistent margins */}
+            <TouchableOpacity style={styles.writeReviewBtn} onPress={handleWriteReview}>
+              <Icon name="pencil" size={16} color="#fff" />
+              <Text style={styles.writeReviewBtnText}>Write Review</Text>
+            </TouchableOpacity>
+
             {reviewsLoading ? (
               <View style={styles.loadingContainer}>
                 <Text style={styles.loadingText}>Loading reviews...</Text>
@@ -1668,7 +2014,7 @@ export default function ProductDetail() {
                 <Text style={styles.noReviewsSubtext}>Be the first to review this product!</Text>
               </View>
             )}
-            
+
             {/* Always show review encouragement message */}
             <View style={styles.reviewEncouragement}>
               <Text style={styles.reviewEncouragementText}>
@@ -1678,51 +2024,135 @@ export default function ProductDetail() {
           </View>
 
           {/* Similar Products Section */}
-          <View style={styles.similarSection}>
+          <View style={[styles.similarSection, { paddingBottom: 100 }]}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Similar Products</Text>
+              {similarProducts.length > 0 && (
+                <TouchableOpacity
+                  style={styles.viewAllButton}
+                  onPress={() => {
+                    try {
+                      setShowAllSimilar(!showAllSimilar);
+                    } catch (error) {
+                      console.error('Error toggling similar products view:', error);
+                    }
+                  }}
+                >
+                  <Text style={styles.viewAllText}>
+                    {showAllSimilar ? 'Show Less' : 'View All'}
+                  </Text>
+                  {!showAllSimilar && (
+                    <View style={styles.countBadge}>
+                      <Text style={styles.countBadgeText}>{similarProducts.length}</Text>
+                    </View>
+                  )}
+                  <Icon
+                    name={showAllSimilar ? "chevron-up" : "chevron-right"}
+                    size={16}
+                    color="#2874f0"
+                    style={styles.viewAllIcon}
+                  />
+                </TouchableOpacity>
+              )}
             </View>
-            
+
             {similarLoading ? (
               <View style={styles.loadingContainer}>
                 <Text style={styles.loadingText}>Loading similar products...</Text>
               </View>
-            ) : similarProducts.length > 0 ? (
+            ) : (Array.isArray(similarProducts) && similarProducts.length > 0) ? (
               <>
                 <Text style={{ fontSize: 12, color: '#666', marginBottom: 10 }}>
                   Found {similarProducts.length} similar products
                 </Text>
-                <FlatList
-                  data={showAllSimilar ? similarProducts : similarProducts.slice(0, 3)}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity 
-                      style={styles.similarProductItem}
-                      onPress={() => navigation.push('ProductDetail', { product: item })}
-                    >
-                      <Image 
-                        source={{ uri: item.imageUrl || item.image_url || 'https://placehold.co/100x100?text=No+Image' }} 
-                        style={styles.similarProductImage} 
-                        resizeMode="cover"
-                      />
-                      <Text style={styles.similarProductName} numberOfLines={2}>
-                        {item.name || 'Product Name'}
-                      </Text>
-                      <Text style={styles.similarProductPrice}>
-                        ₹{item.price || item.mrp || '0'}
-                      </Text>
-                      <View style={styles.similarProductRating}>
-                        {renderStars(item.rating || 0)}
-                        <Text style={styles.similarProductRatingText}>
-                          {item.ratingCount || 0}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  )}
-                  contentContainerStyle={styles.similarProductsList}
-                />
+                {showAllSimilar ? (
+                  // List view - use regular View to avoid nested VirtualizedList error
+                  <View style={styles.similarProductsListView}>
+                    {similarProducts.map((item, index) => (
+                      <TouchableOpacity
+                        key={`similar-list-${item.id || index}`}
+                        style={styles.similarProductItemList}
+                        onPress={() => {
+                          try {
+                            navigation.push('ProductDetail', { product: item });
+                          } catch (error) {
+                            console.error('Navigation error:', error);
+                            navigation.navigate('ProductDetail', { product: item });
+                          }
+                        }}
+                      >
+                        <Image
+                          source={{ uri: item.imageUrl || item.image_url || 'https://placehold.co/100x100?text=No+Image' }}
+                          style={styles.similarProductImageList}
+                          resizeMode="cover"
+                          onError={(e) => {
+                            console.log('Similar product image failed to load:', item.imageUrl || item.image_url);
+                          }}
+                        />
+                        <View style={styles.similarProductInfoList}>
+                          <Text style={[styles.similarProductName, styles.similarProductNameList]} numberOfLines={2}>
+                            {item.name || 'Product Name'}
+                          </Text>
+                          <Text style={[styles.similarProductPrice, styles.similarProductPriceList]}>
+                            ₹{item.price || item.mrp || '0'}
+                          </Text>
+                          <View style={styles.similarProductRating}>
+                            {renderStars(item.rating || 0)}
+                            <Text style={styles.similarProductRatingText}>
+                              {item.ratingCount || 0}
+                            </Text>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : (
+                  // Horizontal scroll view - use FlatList for horizontal scrolling
+                  <FlatList
+                    data={similarProducts.slice(0, 4)}
+                    horizontal={true}
+                    showsHorizontalScrollIndicator={false}
+                    keyExtractor={(item, index) => `similar-horizontal-${item.id || index}`}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={styles.similarProductItem}
+                        onPress={() => {
+                          try {
+                            navigation.push('ProductDetail', { product: item });
+                          } catch (error) {
+                            console.error('Navigation error:', error);
+                            navigation.navigate('ProductDetail', { product: item });
+                          }
+                        }}
+                      >
+                        <Image
+                          source={{ uri: item.imageUrl || item.image_url || 'https://placehold.co/100x100?text=No+Image' }}
+                          style={styles.similarProductImage}
+                          resizeMode="cover"
+                          onError={(e) => {
+                            console.log('Similar product image failed to load:', item.imageUrl || item.image_url);
+                          }}
+                        />
+                        <View style={styles.similarProductInfo}>
+                          <Text style={styles.similarProductName} numberOfLines={2}>
+                            {item.name || 'Product Name'}
+                          </Text>
+                          <Text style={styles.similarProductPrice}>
+                            ₹{item.price || item.mrp || '0'}
+                          </Text>
+                          <View style={styles.similarProductRating}>
+                            {renderStars(item.rating || 0)}
+                            <Text style={styles.similarProductRatingText}>
+                              {item.ratingCount || 0}
+                            </Text>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                    contentContainerStyle={[styles.similarProductsList, { paddingBottom: 20 }]}
+                    style={{ paddingHorizontal: 16 }}
+                  />
+                )}
               </>
             ) : (
               <View style={styles.noSimilarContainer}>
@@ -1734,7 +2164,7 @@ export default function ProductDetail() {
           </View>
         </View>
       </ScrollView>
-      
+
       {/* Write Review Modal */}
       <Modal
         visible={writeReviewModalVisible}
@@ -1750,7 +2180,7 @@ export default function ProductDetail() {
                 <Icon name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
-            
+
             <Text style={styles.modalSubtitle}>Rate this product</Text>
             <View style={styles.ratingSelector}>
               {[1, 2, 3, 4, 5].map((star) => (
@@ -1767,7 +2197,7 @@ export default function ProductDetail() {
                 </TouchableOpacity>
               ))}
             </View>
-            
+
             <Text style={styles.modalSubtitle}>Write your review</Text>
             <TextInput
               style={styles.reviewInput}
@@ -1778,7 +2208,7 @@ export default function ProductDetail() {
               numberOfLines={4}
               textAlignVertical="top"
             />
-            
+
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.modalBtn, styles.cancelBtn]}
@@ -1799,7 +2229,7 @@ export default function ProductDetail() {
           </View>
         </View>
       </Modal>
-      
+
       {/* Bottom Action Bar */}
       <View style={styles.bottomBar}>
         {/* Guest User Message */}
@@ -1811,27 +2241,30 @@ export default function ProductDetail() {
             </Text>
           </View>
         )}
-        
+
         <View style={styles.actionButtons}>
           {/* Add to Cart / Go to Cart */}
-          {prod?.stock > 0 ? (
+          {getCurrentStock() > 0 ? (
             <View style={styles.cartButtonContainer}>
               <TouchableOpacity
-                style={[styles.addToCartBtn, { backgroundColor: inCart ? '#2874f0' : '#4caf50' }]}
-                onPress={() => {
-                  if (inCart) {
-                    navigation.navigate('MainTabs', { screen: 'Cart' });
-                  } else {
-                    handleAddToCart();
-                  }
-                }}
+                style={[styles.addToCartBtn, { backgroundColor: '#4caf50' }]}
+                onPress={handleAddToCart}
               >
-                <Icon name={inCart ? 'cart' : 'cart-plus'} size={20} color="#fff" />
-                <Text style={styles.addToCartBtnText}>
-                  {inCart ? (user ? 'Go to Cart' : 'View Cart') : 'Add to Cart'}
-                </Text>
-                            </TouchableOpacity>
-              
+                <Icon name="cart-plus" size={20} color="#fff" />
+                <Text style={styles.addToCartBtnText}>Add to Cart</Text>
+              </TouchableOpacity>
+
+              {/* Show Go to Cart button if any variant of this product is in cart */}
+              {cartItems.some(item => item.productId === prod.id) && (
+                <TouchableOpacity
+                  style={[styles.addToCartBtn, { backgroundColor: '#2874f0', marginLeft: 8, flex: 0.6 }]}
+                  onPress={() => navigation.navigate('MainTabs', { screen: 'Cart' })}
+                >
+                  <Icon name="cart" size={20} color="#fff" />
+                  <Text style={styles.addToCartBtnText}>Go to Cart</Text>
+                </TouchableOpacity>
+              )}
+
               {/* Guest user info for cart */}
               {!user && !inCart && (
                 <TouchableOpacity
@@ -1850,15 +2283,17 @@ export default function ProductDetail() {
             </View>
           ) : (
             <TouchableOpacity
-              style={[styles.addToCartBtn, { backgroundColor: isNotified ? '#9e9e9e' : '#ff9800' }]}
+              style={[styles.addToCartBtn, { backgroundColor: (isNotified || notificationRequested) ? '#9e9e9e' : '#ff9800' }]}
               onPress={handleNotifyMe}
-              disabled={isNotified}
+              disabled={isNotified || notificationRequested}
             >
-              <Icon name={isNotified ? 'check' : 'bell'} size={20} color="#fff" />
-              <Text style={styles.addToCartBtnText}>{isNotified ? 'Notified' : 'Notify Me'}</Text>
+              <Icon name={(isNotified || notificationRequested) ? 'check' : 'bell'} size={20} color="#fff" />
+              <Text style={styles.addToCartBtnText}>
+                {(isNotified || notificationRequested) ? 'Notified' : 'Notify Me'}
+              </Text>
             </TouchableOpacity>
           )}
-          
+
           <TouchableOpacity
             style={[styles.actionBtn, styles.buyNowBtn, getCurrentStock() <= 0 && styles.disabledBtn]}
             onPress={handleBuyNow}
@@ -1885,37 +2320,37 @@ export default function ProductDetail() {
             <TouchableOpacity onPress={() => setZoomModalVisible(false)} style={styles.closeZoomButton}>
               <Icon name="close" size={24} color="#fff" />
             </TouchableOpacity>
-            
+
             {/* Zoom Instructions */}
             <View style={styles.zoomInstructions}>
               <Text style={styles.zoomInstructionsText}>
                 Tap image to toggle zoom • Use +/- buttons • Drag to pan
               </Text>
             </View>
-            
+
             {/* Zoom Controls */}
             <View style={styles.zoomControls}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.zoomControlBtn}
                 onPress={() => setZoomLevel(Math.max(1, zoomLevel - 0.5))}
               >
                 <Icon name="minus" size={20} color="#fff" />
               </TouchableOpacity>
               <Text style={styles.zoomLevelText}>{zoomLevel.toFixed(1)}x</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.zoomControlBtn}
                 onPress={() => setZoomLevel(Math.min(5, zoomLevel + 0.5))}
               >
                 <Icon name="plus" size={20} color="#fff" />
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.zoomControlBtn}
                 onPress={() => setZoomLevel(1)}
               >
                 <Text style={styles.resetZoomText}>Reset</Text>
               </TouchableOpacity>
             </View>
-            
+
             {/* Large Zoom Level Indicator */}
             <View style={[
               styles.largeZoomIndicator,
@@ -1923,7 +2358,7 @@ export default function ProductDetail() {
             ]}>
               <Text style={styles.largeZoomText}>{zoomLevel.toFixed(1)}x</Text>
             </View>
-            
+
             {/* Advanced Zoomed Image with Pan */}
             <ScrollView
               style={styles.zoomScrollView}
@@ -1934,7 +2369,7 @@ export default function ProductDetail() {
               showsVerticalScrollIndicator={false}
               bounces={false}
               bouncesZoom={false}
-              onMomentumScrollEnd={() => {}}
+              onMomentumScrollEnd={() => { }}
               scrollEventThrottle={16}
             >
               <TouchableOpacity
@@ -1955,7 +2390,7 @@ export default function ProductDetail() {
                   source={{ uri: getCurrentImages()[zoomedImageIndex] }}
                   style={[
                     styles.zoomedImage,
-                    { 
+                    {
                       transform: [{ scale: zoomLevel }],
                       width: width * 0.9,
                       height: 500 * zoomLevel
@@ -1968,11 +2403,11 @@ export default function ProductDetail() {
                 />
               </TouchableOpacity>
             </ScrollView>
-            
+
             {/* Image Navigation in Zoom Mode */}
             {getCurrentImages().length > 1 && (
               <View style={styles.zoomImageNavigation}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.zoomNavBtn}
                   onPress={() => {
                     const newIndex = zoomedImageIndex > 0 ? zoomedImageIndex - 1 : getCurrentImages().length - 1;
@@ -1985,7 +2420,7 @@ export default function ProductDetail() {
                 <Text style={styles.zoomImageCounter}>
                   {zoomedImageIndex + 1} / {getCurrentImages().length}
                 </Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.zoomNavBtn}
                   onPress={() => {
                     const newIndex = zoomedImageIndex < getCurrentImages().length - 1 ? zoomedImageIndex + 1 : 0;
@@ -2005,14 +2440,14 @@ export default function ProductDetail() {
 }
 
 const styles = StyleSheet.create({
-  headerSafeArea: { backgroundColor: '#fff' },
+  headerSafeArea: { backgroundColor: 'transparent' },
   headerContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',
     position: 'absolute',
     top: 0,
     left: 0,
@@ -2044,20 +2479,20 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   imageCarousel: {
-    maxHeight: 500,
+    maxHeight: 560,
     backgroundColor: '#fff',
   },
   imageContainer: {
     position: 'relative',
     width: width,
-    height: 500,
+    height: 560,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 10,
   },
-  productImage: { 
-    width: width * 0.95, 
-    height: 450, 
+  productImage: {
+    width: width * 0.98,
+    height: 520,
     backgroundColor: '#f8f9fa',
     borderRadius: 8,
   },
@@ -2118,22 +2553,22 @@ const styles = StyleSheet.create({
   navArrowRight: {
     right: 15,
   },
-  carouselDots: { 
-    flexDirection: 'row', 
-    justifyContent: 'center', 
+  carouselDots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     marginTop: 10,
     paddingVertical: 10,
   },
-  dot: { 
-    width: 10, 
-    height: 10, 
-    borderRadius: 5, 
-    backgroundColor: '#ccc', 
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#ccc',
     margin: 4,
     borderWidth: 1,
     borderColor: '#ddd',
   },
-  activeDot: { 
+  activeDot: {
     backgroundColor: '#2874f0',
     borderColor: '#2874f0',
   },
@@ -2152,8 +2587,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  delivery: { 
-    color: '#388e3c', 
+  delivery: {
+    color: '#388e3c',
     fontWeight: 'bold',
     fontSize: 14,
   },
@@ -2247,6 +2682,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
   },
   colorOption: {
     borderWidth: 1,
@@ -2258,6 +2695,8 @@ const styles = StyleSheet.create({
     position: 'relative',
     minWidth: 80,
     alignItems: 'center',
+    marginHorizontal: 6,
+    marginVertical: 8,
   },
   selectedColorOption: {
     borderColor: '#2874f0',
@@ -2286,28 +2725,17 @@ const styles = StyleSheet.create({
   selectedCheckmark: {
     position: 'absolute',
     top: -8,
-    right: -8,
+    left: -8,
     backgroundColor: '#2874f0',
     borderRadius: 10,
     width: 20,
     height: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 3,
   },
-  discountBadge: {
-    position: 'absolute',
-    top: -8,
-    left: -8,
-    backgroundColor: '#4caf50',
-    borderRadius: 8,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-  },
-  discountText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
+
+
   outOfStockOverlay: {
     position: 'absolute',
     top: 0,
@@ -2404,9 +2832,9 @@ const styles = StyleSheet.create({
   outOfStockIndicator: {
     backgroundColor: '#f44336',
   },
-  stockInfo: { 
-    fontSize: 14, 
-    color: '#666', 
+  stockInfo: {
+    fontSize: 14,
+    color: '#666',
     flex: 1,
   },
   inStockText: {
@@ -2426,10 +2854,7 @@ const styles = StyleSheet.create({
     color: '#999',
     marginLeft: 'auto',
   },
-  selectColorText: {
-    color: '#f59e0b',
-    fontSize: 14,
-  },
+
   selectOptionsText: {
     color: '#666',
     fontSize: 14,
@@ -2454,7 +2879,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     left: 0,
-        right: 0,
+    right: 0,
   },
   guestUserMessage: {
     flexDirection: 'row',
@@ -2500,11 +2925,14 @@ const styles = StyleSheet.create({
   },
   descriptionContainer: {
     marginBottom: 16,
+    paddingHorizontal: 18,
   },
   descriptionText: {
     fontSize: 15,
     color: '#444',
     lineHeight: 22,
+    textAlign: 'left',
+    textAlignVertical: 'top',
   },
   quantitySection: {
     flexDirection: 'row',
@@ -2547,15 +2975,53 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    paddingHorizontal: 4,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#222',
+    flex: 1,
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: '#2874f0',
+    alignSelf: 'center',
+    marginRight: 20,
+    shadowColor: '#2874f0',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   viewAllText: {
     color: '#2874f0',
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '600',
+    marginRight: 4,
+  },
+  viewAllIcon: {
+    marginLeft: 2,
+  },
+  countBadge: {
+    backgroundColor: '#2874f0',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 6,
+    marginRight: 2,
+  },
+  countBadgeText: {
+    color: '#fff',
+    fontSize: 11,
     fontWeight: 'bold',
   },
   loadingContainer: {
@@ -2628,41 +3094,107 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     padding: 20,
     marginTop: 10,
+    marginBottom: 20,
   },
   similarProductsList: {
-    paddingHorizontal: 5, // Add some horizontal padding for the list
+    paddingVertical: 5,
+  },
+  similarProductsGrid: {
+    paddingHorizontal: 4,
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+  },
+  similarProductsListView: {
+    paddingHorizontal: 16,
   },
   similarProductItem: {
-    width: width * 0.4, // Adjust width for horizontal scroll
-    marginHorizontal: 10,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
+    width: width * 0.42,
+    marginHorizontal: 6,
+    marginVertical: 8,
+    backgroundColor: '#fff',
+    borderRadius: 12,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  similarProductItemGrid: {
+    width: (width - 40) / 2,
+    marginHorizontal: 4,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  similarProductItemList: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginVertical: 6,
+    marginHorizontal: 16,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
   },
   similarProductImage: {
     width: '100%',
-    height: 120,
-    backgroundColor: '#f0f0f0',
+    height: 140,
+    backgroundColor: '#f8f8f8',
+    resizeMode: 'cover',
+  },
+  similarProductImageList: {
+    width: 80,
+    height: 80,
+    backgroundColor: '#f8f8f8',
+    resizeMode: 'cover',
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  similarProductInfo: {
+    flex: 1,
+  },
+  similarProductInfoList: {
+    flex: 1,
+    justifyContent: 'space-between',
   },
   similarProductName: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#333',
-    fontWeight: 'bold',
+    fontWeight: '600',
     marginTop: 8,
     marginBottom: 4,
-    paddingHorizontal: 5,
+    paddingHorizontal: 8,
+    lineHeight: 18,
   },
   similarProductPrice: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#2874f0',
     fontWeight: 'bold',
+    marginBottom: 8,
+    paddingHorizontal: 8,
+  },
+  similarProductNameList: {
+    fontSize: 14,
+    marginTop: 0,
     marginBottom: 4,
-    paddingHorizontal: 5,
+    paddingHorizontal: 0,
+    lineHeight: 20,
+  },
+  similarProductPriceList: {
+    fontSize: 16,
+    marginBottom: 4,
+    paddingHorizontal: 0,
   },
   similarProductRating: {
     flexDirection: 'row',
@@ -2701,6 +3233,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     gap: 5,
+    alignSelf: 'flex-start',
+    marginBottom: 16,
   },
   writeReviewBtnText: {
     color: '#fff',
@@ -2800,22 +3334,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  variantInstructions: {
-    backgroundColor: '#f8f9fa',
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginHorizontal: 16,
-    marginBottom: 16,
-  },
-  variantInstructionsText: {
-    color: '#495057',
-    fontSize: 14,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
+
   debugVariantInfo: {
     backgroundColor: '#fff3cd',
     borderWidth: 1,
@@ -2858,7 +3377,41 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   returnPolicyText: {
-    color: '#388e3c',
+    color: '#333333',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  warrantyContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e3f2fd',
+    borderWidth: 1,
+    borderColor: '#bbdefb',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },
+  warrantyText: {
+    color: '#1976d2',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  shippingPolicyContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f3e5f5',
+    borderWidth: 1,
+    borderColor: '#e1bee7',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },
+  shippingPolicyText: {
+    color: '#7b1fa2',
     fontSize: 14,
     fontWeight: '600',
   },

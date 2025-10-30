@@ -134,6 +134,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     letterSpacing: 8,
     textAlign: 'center',
+    color: '#000',
   },
   button: {
     width: '100%',

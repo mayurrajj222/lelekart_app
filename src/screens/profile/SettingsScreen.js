@@ -546,17 +546,17 @@ export default function SettingsScreen() {
         </View>
 
         {/* Profile Photo Section */}
-        <View style={{ alignItems: 'center', marginBottom: 24 }}>
-          <TouchableOpacity onPress={handlePickProfilePhoto} disabled={photoUploading}>
+        <View style={styles.profilePhotoSection}>
+          <TouchableOpacity onPress={handlePickProfilePhoto} disabled={photoUploading} style={styles.profilePhotoContainer}>
             <Image
               source={profilePhoto ? { uri: profilePhoto } : require('../assets/avatar.png')}
-              style={{ width: 90, height: 90, borderRadius: 45, marginBottom: 8, backgroundColor: '#e3eafc' }}
+              style={styles.profilePhoto}
             />
-            <Text style={{ color: '#2874f0', fontWeight: 'bold', textAlign: 'center' }}>{photoUploading ? 'Uploading...' : 'Change Profile Photo'}</Text>
+            <Text style={styles.changePhotoText}>{photoUploading ? 'Uploading...' : 'Change Profile Photo'}</Text>
           </TouchableOpacity>
          {profilePhoto ? (
-           <TouchableOpacity onPress={handleRemoveProfilePhoto} disabled={photoUploading} style={{ marginTop: 8 }}>
-             <Text style={{ color: '#e53935', fontWeight: 'bold', textAlign: 'center' }}>Remove Photo</Text>
+           <TouchableOpacity onPress={handleRemoveProfilePhoto} disabled={photoUploading} style={styles.removePhotoButton}>
+             <Text style={styles.removePhotoText}>Remove Photo</Text>
            </TouchableOpacity>
          ) : null}
         </View>
@@ -1097,6 +1097,39 @@ const styles = StyleSheet.create({
   // Header
   header: { padding: 20, backgroundColor: '#fff' },
   title: { fontSize: 24, fontWeight: 'bold', color: '#222' },
+  
+  // Profile Photo Section
+  profilePhotoSection: { 
+    alignItems: 'center', 
+    marginBottom: 24, 
+    width: '100%',
+    paddingHorizontal: 20
+  },
+  profilePhotoContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%'
+  },
+  profilePhoto: { 
+    width: 90, 
+    height: 90, 
+    borderRadius: 45, 
+    marginBottom: 8, 
+    backgroundColor: '#e3eafc' 
+  },
+  changePhotoText: { 
+    color: '#2874f0', 
+    fontWeight: 'bold', 
+    textAlign: 'center' 
+  },
+  removePhotoButton: { 
+    marginTop: 8 
+  },
+  removePhotoText: { 
+    color: '#e53935', 
+    fontWeight: 'bold', 
+    textAlign: 'center' 
+  },
   
   // Sections
   section: { backgroundColor: '#fff', marginTop: 8, paddingHorizontal: 20 },

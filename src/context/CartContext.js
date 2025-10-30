@@ -12,7 +12,7 @@ export function CartProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [isUserLoading, setIsUserLoading] = useState(true);
   const GUEST_CART_KEY = 'lelekart_guest_cart';
-  
+
   // Get user from AuthContext instead of managing it separately
   const { user } = useContext(AuthContext);
 
@@ -30,7 +30,7 @@ export function CartProvider({ children }) {
         setGuestCart([]);
       }
     };
-    
+
     loadGuestCart();
   }, []);
 
@@ -43,7 +43,7 @@ export function CartProvider({ children }) {
         console.error('Error saving guest cart:', err);
       }
     };
-    
+
     saveGuestCart();
   }, [guestCart]);
 
@@ -52,7 +52,7 @@ export function CartProvider({ children }) {
     try {
       setLoading(true);
       console.log('Fetching cart for user:', user ? user.id : 'guest');
-      
+
       if (user) {
         // Fetch from server for authenticated users
         const res = await fetch(`${API_BASE}/api/cart`, {
@@ -63,7 +63,7 @@ export function CartProvider({ children }) {
             'Cache-Control': 'no-cache',
           },
         });
-        
+
         if (res.ok) {
           const serverCart = await res.json();
           console.log('Server cart fetched:', serverCart.length, 'items');
@@ -96,9 +96,9 @@ export function CartProvider({ children }) {
   useEffect(() => {
     const mergeGuestCart = async () => {
       if (!user || guestCart.length === 0) return;
-      
+
       console.log('Merging guest cart with server cart...');
-      
+
       try {
         // Add each guest cart item to server cart
         for (const item of guestCart) {
@@ -120,7 +120,7 @@ export function CartProvider({ children }) {
                 ...(numericVariantId !== undefined ? { variantId: numericVariantId } : {}),
               }),
             });
-            
+
             if (!res.ok) {
               console.error('Failed to merge cart item:', res.status);
             }
@@ -128,11 +128,11 @@ export function CartProvider({ children }) {
             console.error('Error merging cart item:', error);
           }
         }
-        
+
         // Clear guest cart after successful merge
         setGuestCart([]);
         await AsyncStorage.removeItem(GUEST_CART_KEY);
-        
+
         // Refresh cart data
         await fetchCart();
         console.log('Guest cart merged successfully');
@@ -146,6 +146,12 @@ export function CartProvider({ children }) {
 
   // Add to cart with proper variant handling and server sync
   const addToCart = async (product, quantity = 1, variant = null, showAlert = true) => {
+    console.log('=== ADD TO CART CALLED ===');
+    console.log('Product:', JSON.stringify(product, null, 2));
+    console.log('Quantity:', quantity);
+    console.log('Variant:', JSON.stringify(variant, null, 2));
+    console.log('User:', user ? 'logged in' : 'guest');
+
     try {
       // Determine the effective variant to use for products with variants
       let effectiveVariant = variant || product?.selectedVariant || null;
@@ -182,13 +188,32 @@ export function CartProvider({ children }) {
         quantity,
         variantId: effectiveVariant?.id ?? variant?.id
       });
-      
+
       // Handle negative quantities (decrease quantity)
       if (quantity < 0) {
         const existingItem = cartItems.find(item => {
           const sameProduct = item.productId === product.id;
-          const sameVariant = JSON.stringify(item.variant) === JSON.stringify(effectiveVariant);
-          return sameProduct && sameVariant;
+
+          // For products without variants, just check if product ID matches
+          if (!effectiveVariant && !item.variant) {
+            return sameProduct;
+          }
+
+          // For products with variants, check if variant matches
+          if (effectiveVariant && item.variant) {
+            // Compare variant ID if available
+            if (effectiveVariant.id && item.variant.id) {
+              return sameProduct && effectiveVariant.id === item.variant.id;
+            }
+
+            // Fallback to comparing variant properties
+            const variantMatch = effectiveVariant.color === item.variant.color &&
+              effectiveVariant.size === item.variant.size;
+            return sameProduct && variantMatch;
+          }
+
+          // If one has variant and other doesn't, they don't match
+          return false;
         });
 
         if (existingItem) {
@@ -245,7 +270,7 @@ export function CartProvider({ children }) {
             } else {
               serverMessage = await res.text();
             }
-          } catch {}
+          } catch { }
           console.error('Add to cart server error:', res.status, serverMessage);
           throw new Error(serverMessage || 'Failed to add to cart');
         }
@@ -254,6 +279,69 @@ export function CartProvider({ children }) {
         await fetchCart();
       } else {
         // Add to local cart for guest users
+        console.log('Adding to guest cart - Product image data:', {
+          productName: product.name,
+          imageUrl: product.imageUrl,
+          image: product.image,
+          mainImage: product.mainImage,
+          image_url: product.image_url,
+          images: product.images,
+          effectiveVariant: effectiveVariant,
+          effectiveVariantImages: effectiveVariant?.images,
+          effectiveVariantImagesLength: effectiveVariant?.images?.length
+        });
+
+        // Determine the best image to use
+        let bestImage = null;
+
+        // Priority 1: Variant images (if variant has non-empty images)
+        if (effectiveVariant?.images && Array.isArray(effectiveVariant.images) && effectiveVariant.images.length > 0) {
+          bestImage = effectiveVariant.images[0];
+        }
+        // Priority 2: Product images
+        else if (product.imageUrl && typeof product.imageUrl === 'string' && product.imageUrl.trim() !== '' && product.imageUrl.trim() !== '[]') {
+          bestImage = product.imageUrl;
+        }
+        else if (product.image && typeof product.image === 'string' && product.image.trim() !== '') {
+          bestImage = product.image;
+        }
+        else if (product.mainImage && typeof product.mainImage === 'string' && product.mainImage.trim() !== '') {
+          bestImage = product.mainImage;
+        }
+        else if (product.image_url && typeof product.image_url === 'string' && product.image_url.trim() !== '') {
+          bestImage = product.image_url;
+        }
+        else if (product.images) {
+          if (Array.isArray(product.images) && product.images.length > 0) {
+            bestImage = product.images[0];
+          } else if (typeof product.images === 'string' && product.images.trim() !== '' && product.images.trim() !== '[]') {
+            try {
+              const parsed = JSON.parse(product.images);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                bestImage = parsed[0];
+              }
+            } catch (e) {
+              bestImage = product.images;
+            }
+          }
+        }
+
+        // Ensure proper URL construction for the best image
+        if (bestImage && typeof bestImage === 'string' && bestImage.trim().length > 0) {
+          const cleanImage = bestImage.trim();
+          if (!cleanImage.startsWith('http')) {
+            // Add API_BASE for relative URLs
+            bestImage = cleanImage.startsWith('/') ? `${API_BASE}${cleanImage}` : `${API_BASE}/${cleanImage}`;
+          }
+        }
+
+        // Fallback to placeholder if no image found
+        if (!bestImage) {
+          bestImage = 'https://placehold.co/200x200?text=Product';
+        }
+
+        console.log('Final best image URL:', bestImage);
+
         const cartItem = {
           id: Date.now(), // Generate unique ID
           productId: product.id,
@@ -262,47 +350,107 @@ export function CartProvider({ children }) {
             id: product.id,
             name: product.name || 'Product',
             price: (effectiveVariant && effectiveVariant.price != null) ? effectiveVariant.price : product.price,
-            imageUrl: product.imageUrl || product.image || 'https://placehold.co/200x200?text=Product',
+            imageUrl: bestImage,
+            image: bestImage,
+            mainImage: bestImage,
+            images: product.images || [],
             selectedVariant: effectiveVariant || product.selectedVariant,
-            selectedColor: product.selectedColor,
-            selectedSize: product.selectedSize,
+            selectedColor: effectiveVariant?.color || product.selectedColor,
+            selectedSize: effectiveVariant?.size || product.selectedSize,
             color: product.color,
             size: product.size
           },
-          variant: effectiveVariant
+          variant: effectiveVariant ? {
+            ...effectiveVariant,
+            images: (effectiveVariant.images && Array.isArray(effectiveVariant.images)) ? effectiveVariant.images : []
+          } : null
         };
-        
+
+        console.log('=== CREATED GUEST CART ITEM ===');
+        console.log('Best image selected:', bestImage);
+        console.log('Effective variant passed:', effectiveVariant);
+        console.log('Effective variant images:', effectiveVariant?.images);
+        console.log('Cart item variant:', cartItem.variant);
+        console.log('Cart item variant images:', cartItem.variant?.images);
+        console.log('Cart item product imageUrl:', cartItem.product.imageUrl);
+
         setGuestCart(prev => {
           const existingItem = prev.find(item => {
             const sameProduct = item.productId === product.id;
-            const sameVariant = JSON.stringify(item.variant) === JSON.stringify(cartItem.variant);
-            return sameProduct && sameVariant;
+
+            // For products without variants, just check if product ID matches
+            if (!cartItem.variant && !item.variant) {
+              return sameProduct;
+            }
+
+            // For products with variants, check if variant matches
+            if (cartItem.variant && item.variant) {
+              // Compare variant ID if available
+              if (cartItem.variant.id && item.variant.id) {
+                return sameProduct && cartItem.variant.id === item.variant.id;
+              }
+
+              // Fallback to comparing variant properties
+              const variantMatch = cartItem.variant.color === item.variant.color &&
+                cartItem.variant.size === item.variant.size;
+              return sameProduct && variantMatch;
+            }
+
+            // If one has variant and other doesn't, they don't match
+            return false;
           });
-          
+
           let newCart;
           if (existingItem) {
             newCart = prev.map(item => {
               const sameProduct = item.productId === product.id;
-              const sameVariant = JSON.stringify(item.variant) === JSON.stringify(cartItem.variant);
-              if (sameProduct && sameVariant) {
-                return { ...item, quantity: item.quantity + quantity };
+
+              // For products without variants, just check if product ID matches
+              if (!cartItem.variant && !item.variant) {
+                if (sameProduct) {
+                  return { ...item, quantity: item.quantity + quantity };
+                }
+                return item;
               }
+
+              // For products with variants, check if variant matches
+              if (cartItem.variant && item.variant) {
+                // Compare variant ID if available
+                if (cartItem.variant.id && item.variant.id) {
+                  if (sameProduct && cartItem.variant.id === item.variant.id) {
+                    return { ...item, quantity: item.quantity + quantity };
+                  }
+                  return item;
+                }
+
+                // Fallback to comparing variant properties
+                const variantMatch = cartItem.variant.color === item.variant.color &&
+                  cartItem.variant.size === item.variant.size;
+                if (sameProduct && variantMatch) {
+                  return { ...item, quantity: item.quantity + quantity };
+                }
+                return item;
+              }
+
+              // If one has variant and other doesn't, they don't match
               return item;
             });
           } else {
             newCart = [...prev, cartItem];
           }
-          
+
           return newCart;
         });
       }
-      
+
       console.log('Product added to cart successfully');
+      return true; // Indicate success
     } catch (err) {
       console.error('Error adding to cart:', err);
       if (showAlert) {
         Alert.alert('Error', err?.message ? String(err.message) : 'Failed to add item to cart');
       }
+      throw err; // Re-throw to allow proper error handling
     }
   };
 
@@ -310,7 +458,7 @@ export function CartProvider({ children }) {
   const removeFromCart = async (itemId, showAlert = true) => {
     try {
       console.log('Removing from cart:', itemId);
-      
+
       if (user) {
         // Remove from server cart
         const res = await fetch(`${API_BASE}/api/cart/${itemId}`, {
@@ -338,7 +486,7 @@ export function CartProvider({ children }) {
           return updatedCart;
         });
       }
-      
+
       console.log('Item removed from cart successfully');
     } catch (err) {
       console.error('Error removing from cart:', err);
@@ -355,10 +503,10 @@ export function CartProvider({ children }) {
       await removeFromCart(itemId, false);
       return;
     }
-    
+
     try {
       console.log('Updating quantity:', itemId, quantity);
-      
+
       if (user) {
         // Update server cart
         const res = await fetch(`${API_BASE}/api/cart/${itemId}`, {
@@ -389,7 +537,7 @@ export function CartProvider({ children }) {
           return updatedCart;
         });
       }
-      
+
       console.log('Quantity updated successfully');
     } catch (err) {
       console.error('Error updating quantity:', err);
@@ -401,7 +549,7 @@ export function CartProvider({ children }) {
   const clearCart = async () => {
     try {
       console.log('Clearing cart');
-      
+
       if (user) {
         // Clear server cart
         const res = await fetch(`${API_BASE}/api/cart/clear`, {
@@ -420,7 +568,7 @@ export function CartProvider({ children }) {
           throw new Error('Failed to clear cart');
         }
       }
-      
+
       // Clear local state and storage
       setCartItems([]);
       setGuestCart([]);
@@ -501,7 +649,7 @@ export function CartProvider({ children }) {
   // Validate cart items
   const validateCart = async () => {
     if (!user) return true; // No validation needed for guest users
-    
+
     try {
       const res = await fetch(`${API_BASE}/api/cart/validate`, {
         method: 'GET',

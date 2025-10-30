@@ -20,6 +20,46 @@ function addDays(dateStr, days) {
   }
 }
 
+function getDeliveryDate(order) {
+  // If order has actual delivery date, use it
+  if (order.deliveredAt) {
+    return new Date(order.deliveredAt);
+  }
+  // If order is delivered but no deliveredAt, use order date + 5 days as estimate
+  if (isOrderDelivered(order)) {
+    return addDays(order.date, 5);
+  }
+  return null;
+}
+
+function isWithinReturnWindow(order) {
+  const deliveryDate = getDeliveryDate(order);
+  if (!deliveryDate) return false;
+  
+  const now = new Date();
+  const daysSinceDelivery = Math.floor((now - deliveryDate) / (1000 * 60 * 60 * 24));
+  return daysSinceDelivery <= 7; // 7 days return window
+}
+
+function hasReturnPolicy(order) {
+  // Check if any product in the order has return policy
+  if (!order.items || !Array.isArray(order.items)) return false;
+  
+  return order.items.some(item => {
+    const product = item.product;
+    // Check various return policy fields
+    return product?.returnPolicy === true || 
+           product?.return_policy === true ||
+           product?.returnable === true ||
+           (typeof product?.returnPolicy === 'string' && product.returnPolicy.toLowerCase() !== 'no return') ||
+           (typeof product?.return_policy === 'string' && product.return_policy.toLowerCase() !== 'no return');
+  });
+}
+
+function isOrderDelivered(order) {
+  return ['delivered', 'completed'].includes((order.status || '').toLowerCase());
+}
+
 function getProductImage(product) {
   return (
     product?.imageUrl ||
@@ -225,13 +265,26 @@ export default function OrdersScreen() {
             errorMessage = await res.text();
           } catch (textError) {
             console.log('Could not parse error response:', textError);
+            // If the API endpoint doesn't exist, show a more user-friendly message
+            if (res.status === 404) {
+              errorMessage = 'Return functionality is currently being set up. Please contact customer support for returns.';
+            } else {
+              errorMessage = 'Unable to process return request at this time. Please contact customer support.';
+            }
           }
         }
         throw new Error(errorMessage);
       }
     } catch (error) {
       console.error('Return submission error:', error);
-      Alert.alert('Error', error.message || 'Failed to submit return request. Please try again.');
+      // Show more user-friendly error messages
+      let userMessage = error.message;
+      if (error.message.includes('fetch') || error.message.includes('network')) {
+        userMessage = 'Network error. Please check your connection and try again.';
+      } else if (error.message.includes('404') || error.message.includes('not found')) {
+        userMessage = 'Return service is currently unavailable. Please contact customer support.';
+      }
+      Alert.alert('Return Request Failed', userMessage);
     } finally {
       setSubmittingReturn(false);
       setOrderIdToReturn(null);
@@ -241,12 +294,20 @@ export default function OrdersScreen() {
     }
   };
 
-  const isOrderDelivered = (order) => {
-    return ['delivered', 'completed'].includes((order.status || '').toLowerCase());
-  };
-
   const isOrderReturnable = (order) => {
-    return isOrderDelivered(order) && !['return_requested', 'returned', 'cancelled'].includes((order.status || '').toLowerCase());
+    // Order must be delivered
+    if (!isOrderDelivered(order)) return false;
+    
+    // Order must not be in return/cancelled states
+    if (['return_requested', 'returned', 'cancelled'].includes((order.status || '').toLowerCase())) return false;
+    
+    // Order must be within 7-day return window
+    if (!isWithinReturnWindow(order)) return false;
+    
+    // Order must have products with return policy
+    if (!hasReturnPolicy(order)) return false;
+    
+    return true;
   };
 
   const pickImage = async () => {
@@ -325,10 +386,38 @@ export default function OrdersScreen() {
                 <Text style={styles.orderStatus}>{item.status ? item.status.replace(/_/g, ' ').toUpperCase() : '-'}</Text>
               </View>
               <Text style={styles.orderDate}>Ordered on: {formatDate(item.date)}</Text>
-              {/* Show expected delivery unless order is cancelled */}
-              {(!item.status || String(item.status).toLowerCase() !== 'cancelled') && !!addDays(item.date, 6) && (
-                <Text style={styles.expectedDelivery}>Expected delivery by: {formatDate(addDays(item.date, 6))}</Text>
-              )}
+              
+              {/* Show delivery information based on order status */}
+              {(() => {
+                const status = (item.status || '').toLowerCase();
+                const deliveryDate = getDeliveryDate(item);
+                
+                if (status === 'cancelled') {
+                  return null; // Don't show delivery info for cancelled orders
+                } else if (isOrderDelivered(item)) {
+                  // Show actual delivery date for delivered orders
+                  return (
+                    <View>
+                      <Text style={styles.deliveredDate}>
+                        Delivered on: {formatDate(deliveryDate || item.deliveredAt || addDays(item.date, 5))}
+                      </Text>
+                      {isWithinReturnWindow(item) && hasReturnPolicy(item) && (
+                        <Text style={styles.returnWindow}>
+                          Return window: {7 - Math.floor((new Date() - deliveryDate) / (1000 * 60 * 60 * 24))} days left
+                        </Text>
+                      )}
+                    </View>
+                  );
+                } else {
+                  // Show expected delivery for pending orders
+                  const expectedDate = addDays(item.date, 6);
+                  return expectedDate ? (
+                    <Text style={styles.expectedDelivery}>
+                      Expected delivery by: {formatDate(expectedDate)}
+                    </Text>
+                  ) : null;
+                }
+              })()}
               <OrderProducts items={item.items} />
               <Text style={styles.orderTotal}>Total: ₹{item.total || '-'}</Text>
               
@@ -345,16 +434,52 @@ export default function OrdersScreen() {
                   </TouchableOpacity>
                 )}
                 
-                {canReturn && (
-                  <TouchableOpacity
-                    style={[styles.actionBtn, styles.returnBtn, submittingReturn && { opacity: 0.6 }]}
-                    onPress={() => handleReturnOrder(item.id)}
-                    disabled={submittingReturn}
-                  >
-                    <Icon name="undo-variant" size={16} color="#fff" style={{ marginRight: 5 }} />
-                    <Text style={styles.actionBtnText}>{submittingReturn ? 'Submitting...' : 'Return Product'}</Text>
-                  </TouchableOpacity>
-                )}
+                {/* Return button with detailed logic */}
+                {(() => {
+                  if (!isOrderDelivered(item)) {
+                    return null; // Don't show return button for non-delivered orders
+                  }
+                  
+                  if (['return_requested', 'returned', 'cancelled'].includes((item.status || '').toLowerCase())) {
+                    return null; // Don't show return button for already processed returns
+                  }
+                  
+                  if (!hasReturnPolicy(item)) {
+                    return (
+                      <TouchableOpacity
+                        style={[styles.actionBtn, styles.disabledBtn]}
+                        disabled={true}
+                      >
+                        <Icon name="close-circle" size={16} color="#999" style={{ marginRight: 5 }} />
+                        <Text style={[styles.actionBtnText, { color: '#999' }]}>No Return Available</Text>
+                      </TouchableOpacity>
+                    );
+                  }
+                  
+                  if (!isWithinReturnWindow(item)) {
+                    return (
+                      <TouchableOpacity
+                        style={[styles.actionBtn, styles.disabledBtn]}
+                        disabled={true}
+                      >
+                        <Icon name="clock-outline" size={16} color="#999" style={{ marginRight: 5 }} />
+                        <Text style={[styles.actionBtnText, { color: '#999' }]}>Return Window Expired</Text>
+                      </TouchableOpacity>
+                    );
+                  }
+                  
+                  // Return is available
+                  return (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.returnBtn, submittingReturn && { opacity: 0.6 }]}
+                      onPress={() => handleReturnOrder(item.id)}
+                      disabled={submittingReturn}
+                    >
+                      <Icon name="undo-variant" size={16} color="#fff" style={{ marginRight: 5 }} />
+                      <Text style={styles.actionBtnText}>{submittingReturn ? 'Submitting...' : 'Return Product'}</Text>
+                    </TouchableOpacity>
+                  );
+                })()}
                 
                 <TouchableOpacity
                   style={[styles.actionBtn, styles.viewDetailsBtn]}
@@ -413,6 +538,14 @@ export default function OrdersScreen() {
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Return Product</Text>
               <Text style={styles.modalSubtitle}>Please select a reason for return and provide additional details</Text>
+              
+              {/* Return Policy Info */}
+              <View style={styles.returnPolicyInfo}>
+                <Icon name="information" size={16} color="#2874f0" />
+                <Text style={styles.returnPolicyText}>
+                  Returns are accepted within 7 days of delivery for eligible products. Products without return policy cannot be returned.
+                </Text>
+              </View>
               
               {/* Return Reason Selection */}
               <View style={styles.reasonSection}>
@@ -491,6 +624,8 @@ const styles = StyleSheet.create({
   orderStatus: { fontSize: 14, fontWeight: 'bold', color: '#6B3F1D', backgroundColor: '#e3f0fd', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8 },
   orderDate: { fontSize: 13, color: '#888', marginTop: 2 },
   expectedDelivery: { fontSize: 13, color: '#ff9800', marginTop: 2 },
+  deliveredDate: { fontSize: 13, color: '#4caf50', marginTop: 2, fontWeight: '600' },
+  returnWindow: { fontSize: 12, color: '#ff5722', marginTop: 2, fontStyle: 'italic' },
   orderTotal: { fontSize: 15, color: '#222', marginTop: 4, fontWeight: 'bold' },
   trackingStatus: { fontSize: 14, color: '#388e3c', marginTop: 6 },
   trackingCourier: { fontSize: 13, color: '#555', marginTop: 2 },
@@ -554,6 +689,7 @@ const styles = StyleSheet.create({
   cancelBtn: { backgroundColor: '#f44336' },
   returnBtn: { backgroundColor: '#ff9800' },
   viewDetailsBtn: { backgroundColor: '#2874f0' },
+  disabledBtn: { backgroundColor: '#e0e0e0', borderWidth: 1, borderColor: '#ccc' },
   reasonSection: { marginTop: 15 },
   reasonLabel: { fontSize: 14, fontWeight: 'bold', color: '#333', marginBottom: 8 },
   reasonOptions: { 
@@ -591,6 +727,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     backgroundColor: '#f8f9fa',
+  },
+  returnPolicyInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#e3f2fd',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  returnPolicyText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#1976d2',
+    marginLeft: 8,
+    lineHeight: 16,
   },
 
 }); 

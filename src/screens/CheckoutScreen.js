@@ -28,9 +28,139 @@ const TEXT_PRIMARY = '#222';
 const TEXT_SECONDARY = '#888';
 const TEXT_ACCENT = ACCENT_COLOR;
 
-export default function CheckoutScreen({ navigation }) {
+export default function CheckoutScreen({ navigation, route }) {
   const { cartItems, updateQuantity, removeFromCart, clearCart } = useCart();
+  const { buyNowMode, buyNowProduct } = route.params || {};
   const { user } = useContext(AuthContext);
+
+  // Resolve best image URL for a cart item (handles guest users and various shapes)
+  const resolveCartItemImageUrl = (item) => {
+    try {
+      console.log('Resolving image for checkout item:', item);
+      
+      // For guest users, item might be the product directly
+      const product = item?.product || item || {};
+      
+      // 1) Variant image wins (but only if it has images)
+      if (item?.variant && item.variant.images) {
+        let variantImage = null;
+        
+        // Handle different image formats
+        if (Array.isArray(item.variant.images) && item.variant.images.length > 0) {
+          variantImage = item.variant.images[0];
+        } else if (typeof item.variant.images === 'string') {
+          try {
+            // Try to parse as JSON array
+            const parsed = JSON.parse(item.variant.images);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              variantImage = parsed[0];
+            }
+          } catch (e) {
+            // If not JSON, treat as direct URL
+            variantImage = item.variant.images;
+          }
+        }
+        
+        if (variantImage && typeof variantImage === 'string' && variantImage.trim().length > 0) {
+          const cleanUrl = variantImage.trim();
+          let url;
+          if (cleanUrl.startsWith('http')) {
+            url = cleanUrl;
+          } else if (cleanUrl.startsWith('/')) {
+            url = `${API_BASE}${cleanUrl}`;
+          } else {
+            url = `${API_BASE}/${cleanUrl}`;
+          }
+          console.log('Using variant image:', url);
+          return url;
+        }
+      }
+
+      // 2) product.imageUrl could be string URL, relative path, or JSON array string
+      if (product.imageUrl) {
+        if (typeof product.imageUrl === 'string') {
+          try {
+            // Try parsing as JSON array
+            const parsed = JSON.parse(product.imageUrl);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const u = parsed[0];
+              const url = typeof u === 'string' && u.length > 0
+                ? (u.startsWith('http') ? u : `${API_BASE}${u.startsWith('/') ? '' : '/'}${u}`)
+                : 'https://placehold.co/60x60?text=No+Image';
+              console.log('Using parsed imageUrl:', url);
+              return url;
+            }
+          } catch (e) {
+            // Not JSON: treat as direct URL/path
+            const u = product.imageUrl.trim();
+            let url;
+            if (u.startsWith('http')) {
+              url = u;
+            } else if (u.startsWith('/')) {
+              url = `${API_BASE}${u}`;
+            } else {
+              url = `${API_BASE}/${u}`;
+            }
+            console.log('Using direct imageUrl:', url);
+            return url;
+          }
+        }
+      }
+
+      // 3) product.images could be array of strings or objects
+      if (product.images) {
+        let firstImage = null;
+        
+        if (Array.isArray(product.images) && product.images.length > 0) {
+          firstImage = product.images[0];
+        } else if (typeof product.images === 'string') {
+          try {
+            // Try to parse as JSON array
+            const parsed = JSON.parse(product.images);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              firstImage = parsed[0];
+            }
+          } catch (e) {
+            // If not JSON, treat as direct URL
+            firstImage = product.images;
+          }
+        }
+        
+        if (firstImage) {
+          if (typeof firstImage === 'string') {
+            const u = firstImage.trim();
+            const url = u.startsWith('http') ? u : `${API_BASE}${u.startsWith('/') ? '' : '/'}${u}`;
+            console.log('Using product.images[0]:', url);
+            return url;
+          }
+          if (firstImage && typeof firstImage.url === 'string') {
+            const u = firstImage.url.trim();
+            const url = u.startsWith('http') ? u : `${API_BASE}${u.startsWith('/') ? '' : '/'}${u}`;
+            console.log('Using product.images[0].url:', url);
+            return url;
+          }
+        }
+      }
+
+      // 4) Fallback to other image fields
+      const fallbacks = [product.mainImage, product.image_url, product.image, item?.image_url, item?.image, item?.imageUrl];
+      for (const f of fallbacks) {
+        if (typeof f === 'string' && f.trim().length > 0) {
+          const u = f.trim();
+          const url = u.startsWith('http') ? u : `${API_BASE}${u.startsWith('/') ? '' : '/'}${u}`;
+          console.log('Using fallback image:', url);
+          return url;
+        }
+      }
+
+      console.log('No image found, using placeholder');
+      // Fallback placeholder
+      return 'https://placehold.co/60x60?text=No+Image';
+    } catch (error) {
+      console.error('Error resolving image:', error);
+      return 'https://placehold.co/60x60?text=No+Image';
+    }
+  };
   const [addresses, setAddresses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [addressLoading, setAddressLoading] = useState(false);
@@ -64,7 +194,18 @@ export default function CheckoutScreen({ navigation }) {
   const [walletError, setWalletError] = useState('');
   const [showRazorpayPayment, setShowRazorpayPayment] = useState(false);
 
-  const subtotal = cartItems.reduce((sum, item) => {
+  // Use buyNowProduct if in buyNow mode, otherwise use cartItems
+  const itemsToProcess = buyNowMode && buyNowProduct ? [buyNowProduct] : cartItems;
+  
+  // Debug logging
+  console.log('=== CHECKOUT SCREEN DEBUG ===');
+  console.log('buyNowMode:', buyNowMode);
+  console.log('buyNowProduct:', buyNowProduct);
+  console.log('cartItems length:', cartItems.length);
+  console.log('itemsToProcess length:', itemsToProcess.length);
+  console.log('itemsToProcess:', itemsToProcess);
+
+  const subtotal = itemsToProcess.reduce((sum, item) => {
     // Use variant price if available, otherwise use product price
     const itemPrice = item.variant && item.variant.price ? item.variant.price : item.product.price;
     return sum + Number(itemPrice || 0) * item.quantity;
@@ -78,6 +219,11 @@ export default function CheckoutScreen({ navigation }) {
   const walletDiscount = walletValue > 0 ? Math.min(walletValue, walletBalance, maxWalletUsage) : 0;
   const grandTotal = Math.max(0, finalTotal - walletDiscount);
 
+  // Debug modal state
+  useEffect(() => {
+    console.log('showAddAddressModal state changed:', showAddAddressModal);
+  }, [showAddAddressModal]);
+
   // Fetch reward and wallet balances
   useEffect(() => {
     if (!user) return;
@@ -89,7 +235,7 @@ export default function CheckoutScreen({ navigation }) {
           const walletData = await walletRes.json();
           setWalletBalance(walletData.balance || 0);
         }
-      } catch {}
+      } catch { }
     };
     fetchBalances();
   }, [user]);
@@ -138,6 +284,7 @@ export default function CheckoutScreen({ navigation }) {
   };
 
   const handleAddAddress = async () => {
+    console.log('handleAddAddress called with form data:', addForm);
     let errors = {};
     if (!addForm.addressName.trim()) errors.addressName = 'Address name is required';
     if (!addForm.fullName.trim()) errors.fullName = 'Full name is required';
@@ -146,8 +293,15 @@ export default function CheckoutScreen({ navigation }) {
     if (!addForm.state.trim()) errors.state = 'State is required';
     if (!/^[0-9]{6}$/.test(addForm.pincode)) errors.pincode = 'Enter a valid 6-digit pincode';
     if (!/^[6789][0-9]{9}$/.test(addForm.phone)) errors.phone = 'Phone number must start with 6, 7, 8, or 9 and be 10 digits';
+
+    console.log('Validation errors:', errors);
     setAddFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
+    if (Object.keys(errors).length > 0) {
+      console.log('Validation failed, not proceeding');
+      return;
+    }
+
+    console.log('Starting to save address...');
     setAddSaving(true);
     try {
       const res = await fetch(`${API_BASE}/api/addresses`, {
@@ -157,11 +311,23 @@ export default function CheckoutScreen({ navigation }) {
         body: JSON.stringify(addForm),
       });
       if (!res.ok) throw new Error('Failed to add address');
+
+      // Get the newly created address
+      const newAddress = await res.json();
+
       setShowAddAddressModal(false);
       setAddForm({ addressName: '', fullName: '', address: '', city: '', state: '', pincode: '', phone: '', addressType: 'both' });
       setAddFieldErrors({ addressName: '', fullName: '', address: '', city: '', state: '', pincode: '', phone: '' });
+
+      // Refresh addresses and auto-select the new one
       await fetchAddresses();
-      Alert.alert('Success', 'Address added successfully');
+
+      // Auto-select the newly added address if we got its data
+      if (newAddress && newAddress.id) {
+        setSelectedAddress(newAddress);
+      }
+
+      Alert.alert('Success', 'Address added successfully and selected for delivery!');
     } catch (err) {
       Alert.alert('Error', err.message || 'Failed to add address');
     } finally {
@@ -170,7 +336,10 @@ export default function CheckoutScreen({ navigation }) {
   };
 
   const handleRazorpaySuccess = (orderId) => {
-    clearCart();
+    // Only clear cart if not in buyNow mode
+    if (!buyNowMode) {
+      clearCart();
+    }
     Alert.alert('Order Placed', 'Thank you for your purchase!');
     navigation.navigate('OrderConfirmation', { order: { id: orderId } });
   };
@@ -189,13 +358,13 @@ export default function CheckoutScreen({ navigation }) {
       Alert.alert('Login Required', 'Please login first to place an order.');
       return;
     }
-    
+
     // Validate selected address
     if (!selectedAddress) {
       Alert.alert('Select Address', 'Please select a shipping address.');
       return;
     }
-    
+
     if (grandTotal > 0 && !paymentMethod) {
       Alert.alert('Select Payment Method', 'Please select a payment method (Online or Cash on Delivery) before placing your order.');
       return;
@@ -260,7 +429,7 @@ export default function CheckoutScreen({ navigation }) {
             setSelectedAddress(addr);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [selectedAddress, addresses]);
 
@@ -271,7 +440,7 @@ export default function CheckoutScreen({ navigation }) {
       </View>
       <ScrollView contentContainerStyle={{ padding: 18 }}>
         <Text style={{ fontSize: 22, fontWeight: 'bold', color: TEXT_PRIMARY, marginBottom: 12 }}>Checkout</Text>
-        
+
         {/* Login Required Check */}
         {!user ? (
           <View style={{ backgroundColor: '#fff3cd', borderColor: '#ffeaa7', borderWidth: 1, borderRadius: 8, padding: 16, marginBottom: 16 }}>
@@ -281,7 +450,7 @@ export default function CheckoutScreen({ navigation }) {
             <Text style={{ color: '#856404', fontSize: 14, textAlign: 'center', marginBottom: 16 }}>
               Please login first to proceed with checkout
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={{ backgroundColor: TEXT_ACCENT, borderRadius: 8, paddingVertical: 12, alignItems: 'center' }}
               onPress={() => navigation.navigate('Account')}
             >
@@ -320,14 +489,18 @@ export default function CheckoutScreen({ navigation }) {
             </View>
           </>
         )}
-            {/* Address Section - Only for logged in users */}
-            {user && (
+        {/* Address Section - Only for logged in users */}
+        {user && (
+          <>
+            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 6, color: TEXT_PRIMARY }}>Shipping Address</Text>
+            {addressLoading ? (
+              <ActivityIndicator size="large" color={TEXT_ACCENT} />
+            ) : (
               <>
-                <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 6, color: TEXT_PRIMARY }}>Shipping Address</Text>
-                {addressLoading ? (
-                  <ActivityIndicator size="large" color={TEXT_ACCENT} />
-                ) : addresses.length === 0 ? (
-                  <Text style={{ color: TEXT_SECONDARY, marginBottom: 12 }}>No addresses found.</Text>
+                {addresses.length === 0 ? (
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={{ color: TEXT_SECONDARY, marginBottom: 8 }}>No addresses found. Please add an address to continue.</Text>
+                  </View>
                 ) : (
                   <>
                     <Picker
@@ -346,135 +519,201 @@ export default function CheckoutScreen({ navigation }) {
                         />
                       ))}
                     </Picker>
-                    <TouchableOpacity
-                      style={{ backgroundColor: TEXT_ACCENT, borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginBottom: 12 }}
-                      onPress={() => setShowAddAddressModal(true)}
-                    >
-                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>+ Add New Address</Text>
-                    </TouchableOpacity>
                   </>
                 )}
-                {selectedAddress && (
-                  <View style={{ backgroundColor: CARD_BG, borderRadius: 8, padding: 10, marginBottom: 16, borderWidth: 1, borderColor: BORDER_COLOR }}>
-                    <Text style={{ fontWeight: 'bold', color: TEXT_PRIMARY }}>{selectedAddress.fullName}</Text>
-                    <Text style={{ color: TEXT_SECONDARY }}>{selectedAddress.address}</Text>
-                    <Text style={{ color: TEXT_SECONDARY }}>{selectedAddress.city}, {selectedAddress.state} {selectedAddress.pincode}</Text>
-                    <Text style={{ color: TEXT_SECONDARY }}>{selectedAddress.phone}</Text>
-                  </View>
-                )}
+
+                {/* Always show Add Address button */}
+                <TouchableOpacity
+                  style={{ backgroundColor: TEXT_ACCENT, borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginBottom: 12 }}
+                  onPress={() => {
+                    console.log('Add New Address button pressed');
+                    setShowAddAddressModal(true);
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>+ Add New Address</Text>
+                </TouchableOpacity>
               </>
             )}
-            {/* Product List */}
-            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 6, color: TEXT_PRIMARY }}>Products</Text>
-            {cartItems.map((item, idx) => {
+            {selectedAddress && (
+              <View style={{ backgroundColor: CARD_BG, borderRadius: 8, padding: 10, marginBottom: 16, borderWidth: 1, borderColor: BORDER_COLOR }}>
+                <Text style={{ fontWeight: 'bold', color: TEXT_PRIMARY }}>{selectedAddress.fullName}</Text>
+                <Text style={{ color: TEXT_SECONDARY }}>{selectedAddress.address}</Text>
+                <Text style={{ color: TEXT_SECONDARY }}>{selectedAddress.city}, {selectedAddress.state} {selectedAddress.pincode}</Text>
+                <Text style={{ color: TEXT_SECONDARY }}>{selectedAddress.phone}</Text>
+              </View>
+            )}
+          </>
+        )}
+        {/* Product List */}
+        <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 6, color: TEXT_PRIMARY }}>Products ({itemsToProcess.length} items)</Text>
+        <View style={{ backgroundColor: CARD_BG, borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: BORDER_COLOR, maxHeight: 400 }}>
+          <ScrollView
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
+            style={{ flexGrow: 1 }}
+          >
+            {itemsToProcess.map((item, idx) => {
               // Use variant price if available, otherwise use product price
               const itemPrice = item.variant && item.variant.price ? item.variant.price : item.product.price;
               return (
-                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: BORDER_COLOR }}>
-                  <Text style={{ flex: 2, color: TEXT_PRIMARY, fontWeight: '500' }}>{item.product.name}</Text>
-                  <Text style={{ flex: 1, textAlign: 'center' }}>x{item.quantity}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right', color: TEXT_SECONDARY }}>₹{Number(itemPrice || 0).toFixed(2)}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right', color: TEXT_ACCENT, fontWeight: '600' }}>₹{(Number(itemPrice || 0) * item.quantity).toFixed(2)}</Text>
+                <View key={idx} style={{ 
+                  flexDirection: 'row', 
+                  alignItems: 'center', 
+                  paddingVertical: 8, 
+                  paddingHorizontal: 4,
+                  borderBottomWidth: idx < itemsToProcess.length - 1 ? 1 : 0, 
+                  borderBottomColor: BORDER_COLOR,
+                  minHeight: 60
+                }}>
+                  <Image 
+                    source={{ uri: resolveCartItemImageUrl(item) }} 
+                    style={{ width: 50, height: 50, borderRadius: 8, marginRight: 12 }}
+                    resizeMode="cover"
+                    onError={(error) => console.log('Checkout image load error:', error.nativeEvent)}
+                  />
+                  <View style={{ flex: 2 }}>
+                    <Text style={{ color: TEXT_PRIMARY, fontWeight: '500', fontSize: 14 }} numberOfLines={2}>
+                      {item.product.name}
+                    </Text>
+                    {item.variant && (
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 2 }}>
+                        {item.variant.color && (
+                          <Text style={{ color: TEXT_SECONDARY, fontSize: 12, marginRight: 8 }}>
+                            Color: {item.variant.color}
+                          </Text>
+                        )}
+                        {item.variant.size && (
+                          <Text style={{ color: TEXT_SECONDARY, fontSize: 12 }}>
+                            Size: {item.variant.size}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                  <Text style={{ flex: 0.8, textAlign: 'center', color: TEXT_PRIMARY, fontWeight: '600' }}>x{item.quantity}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right', color: TEXT_SECONDARY, fontSize: 13 }}>₹{Number(itemPrice || 0).toFixed(2)}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right', color: TEXT_ACCENT, fontWeight: '600', fontSize: 14 }}>₹{(Number(itemPrice || 0) * item.quantity).toFixed(2)}</Text>
                 </View>
               );
             })}
-            {/* Price Breakdown Section */}
-            <View style={{ backgroundColor: CARD_BG, borderRadius: 10, padding: 16, marginTop: 16, marginBottom: 16, borderWidth: 1, borderColor: BORDER_COLOR }}>
-              <Text style={{ fontWeight: 'bold', fontSize: 16, color: TEXT_PRIMARY, marginBottom: 8 }}>Price Details</Text>
-              <View style={styles.priceRow}>
-                <Text style={{ color: TEXT_SECONDARY }}>Subtotal</Text>
-                <Text style={{ color: TEXT_PRIMARY, fontWeight: 'bold' }}>₹{subtotal.toFixed(2)}</Text>
-              </View>
-              <View style={styles.priceRow}>
-                <Text style={{ color: TEXT_SECONDARY }}>Delivery Charge</Text>
-                <Text style={{ color: TEXT_PRIMARY, fontWeight: 'bold' }}>{deliveryCharge === 0 ? 'FREE' : `₹${deliveryCharge}`}</Text>
-              </View>
-              {walletDiscount > 0 && (
-                <View style={styles.priceRow}>
-                  <Text style={{ color: '#388e3c' }}>Wallet Discount</Text>
-                  <Text style={{ color: '#388e3c', fontWeight: 'bold' }}>-₹{walletDiscount.toFixed(2)}</Text>
-                </View>
-              )}
-              {walletValue > maxWalletUsage && walletDiscount > 0 && (
-                <View style={styles.priceRow}>
-                  <Text style={{ color: '#ff9800', fontSize: 12 }}>5% restriction applied</Text>
-                  <Text style={{ color: '#ff9800', fontSize: 12 }}>₹{maxWalletUsage}</Text>
-                </View>
-              )}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: BORDER_COLOR, paddingTop: 10, marginTop: 8 }}>
-                <Text style={{ fontWeight: 'bold', fontSize: 17, color: TEXT_PRIMARY }}>Total</Text>
-                <Text style={{ fontWeight: 'bold', fontSize: 17, color: TEXT_ACCENT }}>₹{grandTotal.toFixed(2)}</Text>
-              </View>
+          </ScrollView>
+        </View>
+        {/* Price Breakdown Section */}
+        <View style={{ backgroundColor: CARD_BG, borderRadius: 10, padding: 16, marginTop: 16, marginBottom: 16, borderWidth: 1, borderColor: BORDER_COLOR }}>
+          <Text style={{ fontWeight: 'bold', fontSize: 16, color: TEXT_PRIMARY, marginBottom: 8 }}>Price Details</Text>
+          <View style={styles.priceRow}>
+            <Text style={{ color: TEXT_SECONDARY }}>Subtotal</Text>
+            <Text style={{ color: TEXT_PRIMARY, fontWeight: 'bold' }}>₹{subtotal.toFixed(2)}</Text>
+          </View>
+          <View style={styles.priceRow}>
+            <Text style={{ color: TEXT_SECONDARY }}>Delivery Charge</Text>
+            <Text style={{ color: TEXT_PRIMARY, fontWeight: 'bold' }}>{deliveryCharge === 0 ? 'FREE' : `₹${deliveryCharge}`}</Text>
+          </View>
+          {walletDiscount > 0 && (
+            <View style={styles.priceRow}>
+              <Text style={{ color: '#388e3c' }}>Wallet Discount</Text>
+              <Text style={{ color: '#388e3c', fontWeight: 'bold' }}>-₹{walletDiscount.toFixed(2)}</Text>
             </View>
-            {/* Payment Method Section */}
-            {grandTotal > 0 && <>
-              <Text style={{ fontSize: 16, fontWeight: '600', marginTop: 18, marginBottom: 6, color: TEXT_PRIMARY }}>Payment Method</Text>
-              <View style={{ flexDirection: 'row', marginBottom: 12 }}>
-                <TouchableOpacity
-                  style={{
-                    flex: 1,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    padding: 12,
-                    borderWidth: 2,
-                    borderColor: paymentMethod === 'cod' ? TEXT_ACCENT : BORDER_COLOR,
-                    borderRadius: 10,
-                    marginRight: 8,
-                    backgroundColor: paymentMethod === 'cod' ? '#f0f6ff' : CARD_BG,
-                    shadowColor: '#000',
-                    shadowOpacity: 0.04,
-                    shadowRadius: 2,
-                    elevation: paymentMethod === 'cod' ? 2 : 0,
-                  }}
-                  onPress={() => setPaymentMethod('cod')}
-                >
-                  <Icon name="cash" size={22} color={paymentMethod === 'cod' ? TEXT_ACCENT : TEXT_SECONDARY} />
-                  <Text style={{ marginLeft: 8, color: paymentMethod === 'cod' ? TEXT_ACCENT : TEXT_PRIMARY, fontWeight: 'bold', fontSize: 15 }}>Cash on Delivery</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={{
-                    flex: 1,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    padding: 12,
-                    borderWidth: 2,
-                    borderColor: paymentMethod === 'razorpay' ? TEXT_ACCENT : BORDER_COLOR,
-                    borderRadius: 10,
-                    backgroundColor: paymentMethod === 'razorpay' ? '#f0f6ff' : CARD_BG,
-                    shadowColor: '#000',
-                    shadowOpacity: 0.04,
-                    shadowRadius: 2,
-                    elevation: paymentMethod === 'razorpay' ? 2 : 0,
-                  }}
-                  onPress={() => setPaymentMethod('razorpay')}
-                >
-                  <Icon name="credit-card-outline" size={22} color={paymentMethod === 'razorpay' ? TEXT_ACCENT : TEXT_SECONDARY} />
-                  <Text style={{ marginLeft: 8, color: paymentMethod === 'razorpay' ? TEXT_ACCENT : TEXT_PRIMARY, fontWeight: 'bold', fontSize: 15 }}>Online Payment (Cards, UPI, Net Banking)</Text>
-                </TouchableOpacity>
-              </View>
-            </>}
-            <TouchableOpacity style={{ backgroundColor: TEXT_ACCENT, borderRadius: 10, paddingVertical: 15, alignItems: 'center', marginTop: 8, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 }} onPress={placeOrder} disabled={placingOrder}>
-              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 17 }}>{placingOrder ? 'Processing...' : grandTotal === 0 ? 'Place Order' : paymentMethod ? 'Place Order' : 'Select Payment Method'}</Text>
+          )}
+          {walletValue > maxWalletUsage && walletDiscount > 0 && (
+            <View style={styles.priceRow}>
+              <Text style={{ color: '#ff9800', fontSize: 12 }}>5% restriction applied</Text>
+              <Text style={{ color: '#ff9800', fontSize: 12 }}>₹{maxWalletUsage}</Text>
+            </View>
+          )}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: BORDER_COLOR, paddingTop: 10, marginTop: 8 }}>
+            <Text style={{ fontWeight: 'bold', fontSize: 17, color: TEXT_PRIMARY }}>Total</Text>
+            <Text style={{ fontWeight: 'bold', fontSize: 17, color: TEXT_ACCENT }}>₹{grandTotal.toFixed(2)}</Text>
+          </View>
+        </View>
+        {/* Payment Method Section */}
+        {grandTotal > 0 && <>
+          <Text style={{ fontSize: 16, fontWeight: '600', marginTop: 18, marginBottom: 6, color: TEXT_PRIMARY }}>Payment Method</Text>
+          <View style={{ flexDirection: 'row', marginBottom: 12 }}>
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                padding: 12,
+                borderWidth: 2,
+                borderColor: paymentMethod === 'cod' ? TEXT_ACCENT : BORDER_COLOR,
+                borderRadius: 10,
+                marginRight: 8,
+                backgroundColor: paymentMethod === 'cod' ? '#f0f6ff' : CARD_BG,
+                shadowColor: '#000',
+                shadowOpacity: 0.04,
+                shadowRadius: 2,
+                elevation: paymentMethod === 'cod' ? 2 : 0,
+              }}
+              onPress={() => setPaymentMethod('cod')}
+            >
+              <Icon name="cash" size={22} color={paymentMethod === 'cod' ? TEXT_ACCENT : TEXT_SECONDARY} />
+              <Text style={{ marginLeft: 8, color: paymentMethod === 'cod' ? TEXT_ACCENT : TEXT_PRIMARY, fontWeight: 'bold', fontSize: 15 }}>Cash on Delivery</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                padding: 12,
+                borderWidth: 2,
+                borderColor: paymentMethod === 'razorpay' ? TEXT_ACCENT : BORDER_COLOR,
+                borderRadius: 10,
+                backgroundColor: paymentMethod === 'razorpay' ? '#f0f6ff' : CARD_BG,
+                shadowColor: '#000',
+                shadowOpacity: 0.04,
+                shadowRadius: 2,
+                elevation: paymentMethod === 'razorpay' ? 2 : 0,
+              }}
+              onPress={() => setPaymentMethod('razorpay')}
+            >
+              <Icon name="credit-card-outline" size={22} color={paymentMethod === 'razorpay' ? TEXT_ACCENT : TEXT_SECONDARY} />
+              <Text style={{ marginLeft: 8, color: paymentMethod === 'razorpay' ? TEXT_ACCENT : TEXT_PRIMARY, fontWeight: 'bold', fontSize: 15 }}>Online Payment (Cards, UPI, Net Banking)</Text>
+            </TouchableOpacity>
+          </View>
+        </>}
+        <TouchableOpacity 
+          style={{ 
+            backgroundColor: !user || placingOrder ? '#ccc' : TEXT_ACCENT, 
+            borderRadius: 10, 
+            paddingVertical: 15, 
+            alignItems: 'center', 
+            marginTop: 8, 
+            shadowColor: '#000', 
+            shadowOpacity: 0.08, 
+            shadowRadius: 4, 
+            elevation: 2 
+          }} 
+          onPress={placeOrder} 
+          disabled={!user || placingOrder}
+        >
+          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 17 }}>
+            {!user ? 'Login Required' : placingOrder ? 'Processing...' : grandTotal === 0 ? 'Place Order' : paymentMethod ? 'Place Order' : 'Select Payment Method'}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
       {/* Add Address Modal */}
       <Modal
         visible={showAddAddressModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowAddAddressModal(false)}
+        onRequestClose={() => {
+          console.log('Modal close requested');
+          setShowAddAddressModal(false);
+        }}
       >
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
           <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 20, width: '90%' }}>
             <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12, color: TEXT_PRIMARY }}>Add New Address</Text>
             <ScrollView style={{ maxHeight: 350 }}>
               <TextInput
-                style={{ 
-                  borderWidth: 1, 
-                  borderColor: addFieldErrors.addressName ? '#e53935' : '#ccc', 
-                  borderRadius: 8, 
-                  padding: 8, 
+                style={{
+                  borderWidth: 1,
+                  borderColor: addFieldErrors.addressName ? '#e53935' : '#ccc',
+                  borderRadius: 8,
+                  padding: 8,
                   marginBottom: 8,
                   backgroundColor: '#f8f9fa',
                   color: '#222'
@@ -486,11 +725,11 @@ export default function CheckoutScreen({ navigation }) {
               />
               {addFieldErrors.addressName ? <Text style={{ color: '#e53935', marginBottom: 4 }}>{addFieldErrors.addressName}</Text> : null}
               <TextInput
-                style={{ 
-                  borderWidth: 1, 
-                  borderColor: addFieldErrors.fullName ? '#e53935' : '#ccc', 
-                  borderRadius: 8, 
-                  padding: 8, 
+                style={{
+                  borderWidth: 1,
+                  borderColor: addFieldErrors.fullName ? '#e53935' : '#ccc',
+                  borderRadius: 8,
+                  padding: 8,
                   marginBottom: 8,
                   backgroundColor: '#f8f9fa',
                   color: '#222'
@@ -502,11 +741,11 @@ export default function CheckoutScreen({ navigation }) {
               />
               {addFieldErrors.fullName ? <Text style={{ color: '#e53935', marginBottom: 4 }}>{addFieldErrors.fullName}</Text> : null}
               <TextInput
-                style={{ 
-                  borderWidth: 1, 
-                  borderColor: addFieldErrors.pincode ? '#e53935' : '#ccc', 
-                  borderRadius: 8, 
-                  padding: 8, 
+                style={{
+                  borderWidth: 1,
+                  borderColor: addFieldErrors.pincode ? '#e53935' : '#ccc',
+                  borderRadius: 8,
+                  padding: 8,
                   marginBottom: 8,
                   backgroundColor: '#f8f9fa',
                   color: '#222'
@@ -537,11 +776,11 @@ export default function CheckoutScreen({ navigation }) {
               />
               {addFieldErrors.pincode ? <Text style={{ color: '#e53935', marginBottom: 4 }}>{addFieldErrors.pincode}</Text> : null}
               <TextInput
-                style={{ 
-                  borderWidth: 1, 
-                  borderColor: addFieldErrors.address ? '#e53935' : '#ccc', 
-                  borderRadius: 8, 
-                  padding: 8, 
+                style={{
+                  borderWidth: 1,
+                  borderColor: addFieldErrors.address ? '#e53935' : '#ccc',
+                  borderRadius: 8,
+                  padding: 8,
                   marginBottom: 8,
                   backgroundColor: '#f8f9fa',
                   color: '#222'
@@ -553,11 +792,11 @@ export default function CheckoutScreen({ navigation }) {
               />
               {addFieldErrors.address ? <Text style={{ color: '#e53935', marginBottom: 4 }}>{addFieldErrors.address}</Text> : null}
               <TextInput
-                style={{ 
-                  borderWidth: 1, 
-                  borderColor: addFieldErrors.city ? '#e53935' : '#ccc', 
-                  borderRadius: 8, 
-                  padding: 8, 
+                style={{
+                  borderWidth: 1,
+                  borderColor: addFieldErrors.city ? '#e53935' : '#ccc',
+                  borderRadius: 8,
+                  padding: 8,
                   marginBottom: 8,
                   backgroundColor: '#f8f9fa',
                   color: '#222'
@@ -570,11 +809,11 @@ export default function CheckoutScreen({ navigation }) {
               />
               {addFieldErrors.city ? <Text style={{ color: '#e53935', marginBottom: 4 }}>{addFieldErrors.city}</Text> : null}
               <TouchableOpacity
-                style={{ 
-                  borderWidth: 1, 
-                  borderColor: addFieldErrors.state ? '#e53935' : '#ccc', 
-                  borderRadius: 8, 
-                  padding: 8, 
+                style={{
+                  borderWidth: 1,
+                  borderColor: addFieldErrors.state ? '#e53935' : '#ccc',
+                  borderRadius: 8,
+                  padding: 8,
                   marginBottom: 8,
                   backgroundColor: '#f8f9fa'
                 }}
@@ -584,16 +823,16 @@ export default function CheckoutScreen({ navigation }) {
               </TouchableOpacity>
               {addFieldErrors.state ? <Text style={{ color: '#e53935', marginBottom: 4 }}>{addFieldErrors.state}</Text> : null}
               <TextInput
-                style={{ 
-                  borderWidth: 1, 
-                  borderColor: addFieldErrors.phone ? '#e53935' : '#ccc', 
-                  borderRadius: 8, 
-                  padding: 8, 
+                style={{
+                  borderWidth: 1,
+                  borderColor: addFieldErrors.phone ? '#e53935' : '#ccc',
+                  borderRadius: 8,
+                  padding: 8,
                   marginBottom: 8,
                   backgroundColor: '#f8f9fa',
                   color: '#222'
                 }}
-                placeholder="Phone Number"
+                placeholder="Phone Number (must start with 6, 7, 8, or 9)"
                 placeholderTextColor="#888"
                 keyboardType="numeric"
                 value={addForm.phone}
@@ -636,7 +875,7 @@ export default function CheckoutScreen({ navigation }) {
           </View>
           <RazorpayPayment
             amount={grandTotal * 100}
-            cartItems={cartItems.map(item => ({
+            cartItems={itemsToProcess.map(item => ({
               productId: item.product.id,
               quantity: item.quantity,
               price: item.variant ? item.variant.price : item.product.price,
